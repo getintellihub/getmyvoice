@@ -1,17 +1,16 @@
-// Replace with your Firebase project config from the Firebase console
-// (Project settings → General → Your apps → SDK setup and configuration).
+// Firebase project config from the Firebase console.
 //
 // NOTE: These values identify your Firebase project — they are safe to ship
 // in the app. The ElevenLabs API key is NOT stored here; it lives only in
 // Firebase's server-side secret manager (see functions/index.js) and is
 // never exposed to the app.
 export const firebaseConfig = {
-  apiKey: 'YOUR_API_KEY',
-  authDomain: 'YOUR_PROJECT_ID.firebaseapp.com',
-  projectId: 'YOUR_PROJECT_ID',
-  storageBucket: 'YOUR_PROJECT_ID.appspot.com',
-  messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-  appId: 'YOUR_APP_ID',
+  apiKey: 'AIzaSyAyBtQ8rEOiPFiOUr4Y7hqcwoRYS0nWRLU',
+  authDomain: 'getmyvoice-83d97.firebaseapp.com',
+  projectId: 'getmyvoice-83d97',
+  storageBucket: 'getmyvoice-83d97.firebasestorage.app',
+  messagingSenderId: '882330948987',
+  appId: '1:882330948987:web:730892c57e911d89b819de',
 };
 
 // The region your Cloud Functions are deployed to. "us-central1" is the
