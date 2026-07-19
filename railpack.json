@@ -2,11 +2,11 @@
   "$schema": "https://schema.railpack.com",
   "steps": {
     "build": {
-      "commands": ["...", "npx expo export -p web"]
+      "commands": ["...", "npm run build:web"]
     }
   },
   "deploy": {
-    "startCommand": "npx serve dist -s -l $PORT",
+    "startCommand": "npm run serve:web",
     "inputs": [{ "step": "build" }]
   }
 }
