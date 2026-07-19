@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-const STORAGE_KEY = 'myvoice:auto-speak-schedule';
+const STORAGE_KEY = 'myvoice:auto-speak-schedule-v2';
 
 export interface ScheduleEntry {
   id: string;
@@ -12,14 +12,35 @@ export interface ScheduleEntry {
 }
 
 const DEFAULT_SCHEDULE: ScheduleEntry[] = [
-  { id: 'default-morning', time: '08:00', phrase: 'Good morning!', label: 'Morning greeting', enabled: false },
-  { id: 'default-afternoon', time: '13:00', phrase: 'Good afternoon!', label: 'Afternoon greeting', enabled: false },
-  { id: 'default-evening', time: '19:00', phrase: 'Good evening!', label: 'Evening greeting', enabled: false },
+  {
+    id: 'morning-6am',
+    time: '06:00',
+    label: '6:00 AM',
+    phrase: 'Good morning! Hope you have a wonderful day.',
+    enabled: false,
+  },
+  {
+    id: 'afternoon-12pm',
+    time: '12:00',
+    label: '12:00 PM',
+    phrase: 'Good afternoon! Hope your day is going well.',
+    enabled: false,
+  },
+  {
+    id: 'evening-5pm',
+    time: '17:00',
+    label: '5:00 PM',
+    phrase: "Good evening! It's nice to see you.",
+    enabled: false,
+  },
+  {
+    id: 'night-9pm',
+    time: '21:00',
+    label: '9:00 PM',
+    phrase: 'Good night! Sleep well and take care.',
+    enabled: false,
+  },
 ];
-
-function isValidTime(time: string) {
-  return /^([01]\d|2[0-3]):([0-5]\d)$/.test(time);
-}
 
 export function useAutoSpeakSchedule(onTrigger: (phrase: string) => void) {
   const [schedule, setSchedule] = useState<ScheduleEntry[]>(DEFAULT_SCHEDULE);
@@ -29,48 +50,21 @@ export function useAutoSpeakSchedule(onTrigger: (phrase: string) => void) {
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY).then((raw) => {
-      if (raw) setSchedule(JSON.parse(raw));
+      if (!raw) return;
+      const savedEnabled: Record<string, boolean> = JSON.parse(raw);
+      setSchedule((previous) =>
+        previous.map((entry) =>
+          entry.id in savedEnabled ? { ...entry, enabled: savedEnabled[entry.id] } : entry,
+        ),
+      );
     });
   }, []);
-
-  const persist = useCallback((next: ScheduleEntry[]) => {
-    setSchedule(next);
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)).catch(() => undefined);
-  }, []);
-
-  const addEntry = useCallback(
-    (entry: { time: string; phrase: string; label: string }) => {
-      if (!isValidTime(entry.time) || !entry.phrase.trim()) return;
-      setSchedule((previous) => {
-        const next = [
-          ...previous,
-          {
-            id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-            time: entry.time,
-            phrase: entry.phrase.trim(),
-            label: entry.label.trim() || entry.phrase.trim(),
-            enabled: true,
-          },
-        ].sort((a, b) => a.time.localeCompare(b.time));
-        AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)).catch(() => undefined);
-        return next;
-      });
-    },
-    [],
-  );
 
   const toggleEntry = useCallback((id: string) => {
     setSchedule((previous) => {
       const next = previous.map((entry) => (entry.id === id ? { ...entry, enabled: !entry.enabled } : entry));
-      AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)).catch(() => undefined);
-      return next;
-    });
-  }, []);
-
-  const removeEntry = useCallback((id: string) => {
-    setSchedule((previous) => {
-      const next = previous.filter((entry) => entry.id !== id);
-      AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)).catch(() => undefined);
+      const enabledMap = Object.fromEntries(next.map((entry) => [entry.id, entry.enabled]));
+      AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(enabledMap)).catch(() => undefined);
       return next;
     });
   }, []);
@@ -94,5 +88,5 @@ export function useAutoSpeakSchedule(onTrigger: (phrase: string) => void) {
     return () => clearInterval(interval);
   }, [schedule]);
 
-  return { schedule, addEntry, toggleEntry, removeEntry };
+  return { schedule, toggleEntry };
 }

@@ -1,19 +1,21 @@
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { SliderControl } from '@/components/slider-control';
+import { VoiceSelector } from '@/components/voice-selector';
 import { VoiceFonts, VoiceTheme } from '@/constants/voice-theme';
 import { VOICE_SETTING_RANGES, VoiceSettings } from '@/hooks/use-voice-settings';
 
 interface VoiceSettingsModalProps {
   visible: boolean;
   settings: VoiceSettings;
-  onChange: (key: keyof VoiceSettings, value: number) => void;
+  onChange: (key: keyof typeof VOICE_SETTING_RANGES, value: number) => void;
+  onVoiceChange: (voiceIdentifier: string | null) => void;
   onReset: () => void;
   onClose: () => void;
   onPreview: () => void;
 }
 
-const ROWS: { key: keyof VoiceSettings; label: string; hint: string; suffix: string }[] = [
+const ROWS: { key: keyof typeof VOICE_SETTING_RANGES; label: string; hint: string; suffix: string }[] = [
   { key: 'rate', label: 'Speed', hint: 'How fast the voice talks', suffix: 'x' },
   { key: 'pitch', label: 'Pitch', hint: 'How high or low the voice sounds', suffix: 'x' },
   { key: 'volume', label: 'Volume', hint: 'How loud the voice is', suffix: '' },
@@ -23,6 +25,7 @@ export function VoiceSettingsModal({
   visible,
   settings,
   onChange,
+  onVoiceChange,
   onReset,
   onClose,
   onPreview,
@@ -34,33 +37,37 @@ export function VoiceSettingsModal({
           <View style={styles.handle} />
           <Text style={styles.title}>Voice Settings</Text>
 
-          {ROWS.map((row) => {
-            const range = VOICE_SETTING_RANGES[row.key];
-            return (
-              <SliderControl
-                key={row.key}
-                label={row.label}
-                hint={row.hint}
-                value={settings[row.key]}
-                min={range.min}
-                max={range.max}
-                step={range.step}
-                formatValue={(value) => `${value.toFixed(1)}${row.suffix}`}
-                onChange={(value) => onChange(row.key, value)}
-              />
-            );
-          })}
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {ROWS.map((row) => {
+              const range = VOICE_SETTING_RANGES[row.key];
+              return (
+                <SliderControl
+                  key={row.key}
+                  label={row.label}
+                  hint={row.hint}
+                  value={settings[row.key]}
+                  min={range.min}
+                  max={range.max}
+                  step={range.step}
+                  formatValue={(value) => `${value.toFixed(1)}${row.suffix}`}
+                  onChange={(value) => onChange(row.key, value)}
+                />
+              );
+            })}
 
-          <View style={styles.actionsRow}>
-            <Pressable
-              onPress={onPreview}
-              style={({ pressed }) => [styles.previewButton, pressed && styles.previewButtonPressed]}>
-              <Text style={styles.previewButtonText}>🔊 Preview voice</Text>
-            </Pressable>
-            <Pressable onPress={onReset} style={({ pressed }) => [styles.resetButton, pressed && styles.resetButtonPressed]}>
-              <Text style={styles.resetButtonText}>Reset</Text>
-            </Pressable>
-          </View>
+            <VoiceSelector voiceIdentifier={settings.voiceIdentifier} onChange={onVoiceChange} />
+
+            <View style={styles.actionsRow}>
+              <Pressable
+                onPress={onPreview}
+                style={({ pressed }) => [styles.previewButton, pressed && styles.previewButtonPressed]}>
+                <Text style={styles.previewButtonText}>🔊 Preview voice</Text>
+              </Pressable>
+              <Pressable onPress={onReset} style={({ pressed }) => [styles.resetButton, pressed && styles.resetButtonPressed]}>
+                <Text style={styles.resetButtonText}>Reset</Text>
+              </Pressable>
+            </View>
+          </ScrollView>
 
           <Pressable onPress={onClose} style={({ pressed }) => [styles.closeButton, pressed && styles.closeButtonPressed]}>
             <Text style={styles.closeButtonText}>Done</Text>

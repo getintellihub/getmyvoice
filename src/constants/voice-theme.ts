@@ -1,19 +1,21 @@
 export const VoiceTheme = {
-  background: '#150A28',
-  surface: '#22123F',
-  surfaceElevated: '#301B54',
-  border: '#4A2E7A',
-  accent: '#A855F7',
-  accentSoft: '#9333EA',
-  accentStrong: '#C084FC',
-  text: '#F5F1FF',
-  textSecondary: '#C4B0EA',
-  textMuted: '#8A76B5',
-  danger: '#FB7185',
-  success: '#34D399',
-  onAccent: '#1B0B33',
+  background: '#241a3d',
+  surface: '#2f2350',
+  surfaceElevated: '#3c2d63',
+  border: '#5b3fa0',
+  accent: '#7c5cbf',
+  accentSoft: '#6a4dab',
+  accentStrong: '#9b82d4',
+  text: '#ede8f8',
+  textSecondary: '#c7b8e8',
+  textMuted: '#9483bd',
+  danger: '#e0645f',
+  success: '#3ea877',
+  onAccent: '#ffffff',
 } as const;
 
 export const VoiceFonts = {
   display: 'DMSerifDisplay_400Regular',
 } as const;
+
+export const MIN_TOUCH_TARGET = 56;

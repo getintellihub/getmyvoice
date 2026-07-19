@@ -6,16 +6,20 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AutoSpeakScheduleModal } from '@/components/auto-speak-schedule-modal';
 import { GreetingBanner } from '@/components/greeting-banner';
 import { HistoryModal } from '@/components/history-modal';
+import { OnboardingScreen } from '@/components/onboarding-screen';
 import { PhraseGrid } from '@/components/phrase-grid';
 import { QuickCommandsFab } from '@/components/quick-commands-fab';
 import { VoiceSettingsModal } from '@/components/voice-settings-modal';
 import { CATEGORIES, CategoryId, DEFAULT_PHRASES } from '@/constants/phrases';
-import { VoiceFonts, VoiceTheme } from '@/constants/voice-theme';
+import { MIN_TOUCH_TARGET, VoiceFonts, VoiceTheme } from '@/constants/voice-theme';
 import { useAutoSpeakSchedule } from '@/hooks/use-auto-speak-schedule';
 import { useCustomPhrases } from '@/hooks/use-custom-phrases';
 import { useHistory } from '@/hooks/use-history';
+import { useOnboarding } from '@/hooks/use-onboarding';
 import { useTimeGreeting } from '@/hooks/use-time-greeting';
 import { useVoiceSettings } from '@/hooks/use-voice-settings';
+
+const MAX_CHARACTERS = 500;
 
 export default function MyVoiceScreen() {
   const [activeCategory, setActiveCategory] = useState<CategoryId>('greetings');
@@ -24,8 +28,10 @@ export default function MyVoiceScreen() {
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [historyVisible, setHistoryVisible] = useState(false);
   const [scheduleVisible, setScheduleVisible] = useState(false);
+  const [greetingDismissed, setGreetingDismissed] = useState(false);
 
-  const { settings, updateSetting, resetSettings } = useVoiceSettings();
+  const { isLoaded: onboardingLoaded, hasSeenOnboarding, completeOnboarding } = useOnboarding();
+  const { settings, updateSetting, setVoiceIdentifier, resetSettings } = useVoiceSettings();
   const { history, addToHistory, clearHistory } = useHistory();
   const { phrases: myPhrases, addPhrase, removePhrase } = useCustomPhrases();
   const timeGreeting = useTimeGreeting();
@@ -34,7 +40,6 @@ export default function MyVoiceScreen() {
     () => CATEGORIES.find((category) => category.id === activeCategory) ?? CATEGORIES[0],
     [activeCategory],
   );
-  const quickCommandsCategory = useMemo(() => CATEGORIES.find((category) => category.id === 'commands')!, []);
 
   function speak(text: string) {
     const trimmed = text.trim();
@@ -46,6 +51,7 @@ export default function MyVoiceScreen() {
       rate: settings.rate,
       pitch: settings.pitch,
       volume: settings.volume,
+      voice: settings.voiceIdentifier ?? undefined,
       onDone: () => setIsSpeaking(false),
       onStopped: () => setIsSpeaking(false),
       onError: () => setIsSpeaking(false),
@@ -53,9 +59,19 @@ export default function MyVoiceScreen() {
     addToHistory(trimmed);
   }
 
-  const { schedule, addEntry, toggleEntry, removeEntry } = useAutoSpeakSchedule(speak);
+  function stopSpeaking() {
+    Speech.stop();
+    setIsSpeaking(false);
+  }
+
+  function clearInput() {
+    setInputText('');
+  }
+
+  const { schedule, toggleEntry } = useAutoSpeakSchedule(speak);
 
   function speakTypedText() {
+    if (!inputText.trim()) return;
     speak(inputText);
     setInputText('');
   }
@@ -66,7 +82,16 @@ export default function MyVoiceScreen() {
       rate: settings.rate,
       pitch: settings.pitch,
       volume: settings.volume,
+      voice: settings.voiceIdentifier ?? undefined,
     });
+  }
+
+  if (!onboardingLoaded) {
+    return <View style={styles.safeArea} />;
+  }
+
+  if (!hasSeenOnboarding) {
+    return <OnboardingScreen onContinue={completeOnboarding} />;
   }
 
   return (
@@ -101,27 +126,60 @@ export default function MyVoiceScreen() {
           </View>
         </View>
 
-        <GreetingBanner greeting={timeGreeting} onSpeak={speak} />
+        {!greetingDismissed && (
+          <GreetingBanner greeting={timeGreeting} onSpeak={speak} onDismiss={() => setGreetingDismissed(true)} />
+        )}
 
         <View style={styles.typeCard}>
           <TextInput
             value={inputText}
-            onChangeText={setInputText}
-            placeholder="Type what you want to say..."
+            onChangeText={(text) => setInputText(text.slice(0, MAX_CHARACTERS))}
+            placeholder="Type what you want to say…"
             placeholderTextColor={VoiceTheme.textMuted}
             style={styles.textInput}
             multiline
+            maxLength={MAX_CHARACTERS}
+            submitBehavior="submit"
+            onSubmitEditing={speakTypedText}
           />
-          <Pressable
-            disabled={!inputText.trim()}
-            onPress={speakTypedText}
-            style={({ pressed }) => [
-              styles.speakButton,
-              !inputText.trim() && styles.speakButtonDisabled,
-              pressed && !!inputText.trim() && styles.speakButtonPressed,
-            ]}>
-            <Text style={styles.speakButtonText}>{isSpeaking ? '🔊 Speaking…' : '🔊 Speak'}</Text>
-          </Pressable>
+          <View style={styles.typeMetaRow}>
+            <Text style={styles.hintText}>⏎ Press Enter to speak</Text>
+            <Text style={styles.charCounter}>
+              {inputText.length}/{MAX_CHARACTERS}
+            </Text>
+          </View>
+          <View style={styles.actionsRow}>
+            <Pressable
+              disabled={!inputText.trim()}
+              onPress={speakTypedText}
+              style={({ pressed }) => [
+                styles.speakButton,
+                !inputText.trim() && styles.speakButtonDisabled,
+                pressed && !!inputText.trim() && styles.speakButtonPressed,
+              ]}>
+              <Text style={styles.speakButtonText}>{isSpeaking ? '🔊 Speaking…' : '🔊 Speak'}</Text>
+            </Pressable>
+            <Pressable
+              disabled={!isSpeaking}
+              onPress={stopSpeaking}
+              style={({ pressed }) => [
+                styles.stopButton,
+                !isSpeaking && styles.stopButtonDisabled,
+                pressed && isSpeaking && styles.stopButtonPressed,
+              ]}>
+              <Text style={[styles.stopButtonText, !isSpeaking && styles.stopButtonTextDisabled]}>⏹ Stop</Text>
+            </Pressable>
+            <Pressable
+              disabled={!inputText}
+              onPress={clearInput}
+              style={({ pressed }) => [
+                styles.clearButton,
+                !inputText && styles.clearButtonDisabled,
+                pressed && !!inputText && styles.clearButtonPressed,
+              ]}>
+              <Text style={[styles.clearButtonText, !inputText && styles.clearButtonTextDisabled]}>✕ Clear</Text>
+            </Pressable>
+          </View>
         </View>
 
         <ScrollView
@@ -162,16 +220,13 @@ export default function MyVoiceScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      <QuickCommandsFab
-        phrases={DEFAULT_PHRASES.commands}
-        color={quickCommandsCategory.color}
-        onSpeak={speak}
-      />
+      <QuickCommandsFab onSpeak={speak} />
 
       <VoiceSettingsModal
         visible={settingsVisible}
         settings={settings}
         onChange={updateSetting}
+        onVoiceChange={setVoiceIdentifier}
         onReset={resetSettings}
         onClose={() => setSettingsVisible(false)}
         onPreview={handlePreviewVoice}
@@ -189,9 +244,7 @@ export default function MyVoiceScreen() {
         visible={scheduleVisible}
         schedule={schedule}
         onClose={() => setScheduleVisible(false)}
-        onAdd={addEntry}
         onToggle={toggleEntry}
-        onRemove={removeEntry}
       />
     </SafeAreaView>
   );
@@ -227,9 +280,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   iconButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     backgroundColor: VoiceTheme.surface,
     alignItems: 'center',
     justifyContent: 'center',
@@ -240,7 +293,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   iconButtonText: {
-    fontSize: 17,
+    fontSize: 18,
   },
   typeCard: {
     marginHorizontal: 20,
@@ -248,7 +301,7 @@ const styles = StyleSheet.create({
     backgroundColor: VoiceTheme.surface,
     borderRadius: 20,
     padding: 16,
-    gap: 12,
+    gap: 10,
     borderWidth: 1,
     borderColor: VoiceTheme.border,
   },
@@ -259,11 +312,30 @@ const styles = StyleSheet.create({
     fontSize: 17,
     textAlignVertical: 'top',
   },
+  typeMetaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  hintText: {
+    color: VoiceTheme.textMuted,
+    fontSize: 12,
+  },
+  charCounter: {
+    color: VoiceTheme.textMuted,
+    fontSize: 12,
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
   speakButton: {
+    flex: 2,
+    minHeight: MIN_TOUCH_TARGET,
     backgroundColor: VoiceTheme.accent,
     borderRadius: 16,
-    paddingVertical: 14,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   speakButtonDisabled: {
     backgroundColor: VoiceTheme.surfaceElevated,
@@ -275,6 +347,52 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     color: VoiceTheme.onAccent,
+  },
+  stopButton: {
+    flex: 1,
+    minHeight: MIN_TOUCH_TARGET,
+    backgroundColor: VoiceTheme.danger,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stopButtonDisabled: {
+    backgroundColor: VoiceTheme.surfaceElevated,
+  },
+  stopButtonPressed: {
+    opacity: 0.85,
+  },
+  stopButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: VoiceTheme.onAccent,
+  },
+  stopButtonTextDisabled: {
+    color: VoiceTheme.textMuted,
+  },
+  clearButton: {
+    flex: 1,
+    minHeight: MIN_TOUCH_TARGET,
+    backgroundColor: VoiceTheme.surfaceElevated,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: VoiceTheme.border,
+  },
+  clearButtonDisabled: {
+    opacity: 0.6,
+  },
+  clearButtonPressed: {
+    opacity: 0.7,
+  },
+  clearButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: VoiceTheme.textSecondary,
+  },
+  clearButtonTextDisabled: {
+    color: VoiceTheme.textMuted,
   },
   categoryScroll: {
     marginTop: 18,

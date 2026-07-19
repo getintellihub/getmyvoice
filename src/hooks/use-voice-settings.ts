@@ -7,12 +7,14 @@ export interface VoiceSettings {
   rate: number;
   pitch: number;
   volume: number;
+  voiceIdentifier: string | null;
 }
 
 export const DEFAULT_VOICE_SETTINGS: VoiceSettings = {
   rate: 1,
   pitch: 1,
   volume: 1,
+  voiceIdentifier: null,
 };
 
 export const VOICE_SETTING_RANGES = {
@@ -33,11 +35,19 @@ export function useVoiceSettings() {
       .finally(() => setIsLoaded(true));
   }, []);
 
-  const updateSetting = useCallback((key: keyof VoiceSettings, value: number) => {
+  const updateSetting = useCallback((key: keyof typeof VOICE_SETTING_RANGES, value: number) => {
     setSettings((previous) => {
       const range = VOICE_SETTING_RANGES[key];
       const clamped = Math.min(range.max, Math.max(range.min, Number(value.toFixed(1))));
       const next = { ...previous, [key]: clamped };
+      AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)).catch(() => undefined);
+      return next;
+    });
+  }, []);
+
+  const setVoiceIdentifier = useCallback((voiceIdentifier: string | null) => {
+    setSettings((previous) => {
+      const next = { ...previous, voiceIdentifier };
       AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)).catch(() => undefined);
       return next;
     });
@@ -48,5 +58,5 @@ export function useVoiceSettings() {
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_VOICE_SETTINGS)).catch(() => undefined);
   }, []);
 
-  return { settings, isLoaded, updateSetting, resetSettings };
+  return { settings, isLoaded, updateSetting, setVoiceIdentifier, resetSettings };
 }

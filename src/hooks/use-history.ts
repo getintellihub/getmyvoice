@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useState } from 'react';
 
 const STORAGE_KEY = 'myvoice:history';
-const MAX_HISTORY_ITEMS = 30;
+const MAX_HISTORY_ITEMS = 20;
 
 export interface HistoryEntry {
   id: string;

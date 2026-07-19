@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { VoiceTheme } from '@/constants/voice-theme';
+import { MIN_TOUCH_TARGET, VoiceTheme } from '@/constants/voice-theme';
 import { CustomPhrase } from '@/hooks/use-custom-phrases';
 
 interface PhraseGridProps {
@@ -111,6 +111,7 @@ const styles = StyleSheet.create({
   },
   addInput: {
     flex: 1,
+    minHeight: MIN_TOUCH_TARGET,
     backgroundColor: VoiceTheme.surfaceElevated,
     borderRadius: 14,
     paddingHorizontal: 14,
@@ -120,6 +121,7 @@ const styles = StyleSheet.create({
     borderColor: VoiceTheme.border,
   },
   addButton: {
+    minHeight: MIN_TOUCH_TARGET,
     paddingHorizontal: 18,
     borderRadius: 14,
     alignItems: 'center',
@@ -146,8 +148,10 @@ const styles = StyleSheet.create({
     backgroundColor: VoiceTheme.surfaceElevated,
     borderWidth: 1.5,
     borderRadius: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 16,
+    minHeight: MIN_TOUCH_TARGET,
+    justifyContent: 'center',
   },
   customChip: {
     flexDirection: 'row',
