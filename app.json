@@ -29,6 +29,12 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "MyVoice needs microphone access to record a short voice sample so it can clone your voice."
+        }
       ]
     ],
     "experiments": {

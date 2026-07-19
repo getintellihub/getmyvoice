@@ -1,8 +1,11 @@
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { SliderControl } from '@/components/slider-control';
+import { VoiceCloneCard } from '@/components/voice-clone-card';
 import { VoiceSelector } from '@/components/voice-selector';
-import { VoiceFonts, VoiceTheme } from '@/constants/voice-theme';
+import { MIN_TOUCH_TARGET, VoiceFonts, VoiceTheme } from '@/constants/voice-theme';
+import { useVoiceClone } from '@/hooks/use-voice-clone';
 import { VOICE_SETTING_RANGES, VoiceSettings } from '@/hooks/use-voice-settings';
 
 interface VoiceSettingsModalProps {
@@ -13,6 +16,7 @@ interface VoiceSettingsModalProps {
   onReset: () => void;
   onClose: () => void;
   onPreview: () => void;
+  onTestClonedVoice: () => void;
 }
 
 const ROWS: { key: keyof typeof VOICE_SETTING_RANGES; label: string; hint: string; suffix: string }[] = [
@@ -29,7 +33,23 @@ export function VoiceSettingsModal({
   onReset,
   onClose,
   onPreview,
+  onTestClonedVoice,
 }: VoiceSettingsModalProps) {
+  const [isRerecording, setIsRerecording] = useState(false);
+  const clone = useVoiceClone();
+
+  function handleRemoveClone() {
+    Alert.alert('Remove voice clone?', 'MyVoice will switch back to the system voice.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Remove', style: 'destructive', onPress: () => clone.removeClone() },
+    ]);
+  }
+
+  // Show the clone card when the user has no clone yet, is mid-flow (recording /
+  // uploading / success / error), or explicitly chose to re-record.
+  const showCloneFlow = !clone.hasClone || isRerecording || clone.stage !== 'intro';
+  const showCloneStatus = clone.hasClone && !showCloneFlow;
+
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.overlay}>
@@ -38,6 +58,60 @@ export function VoiceSettingsModal({
           <Text style={styles.title}>Voice Settings</Text>
 
           <ScrollView showsVerticalScrollIndicator={false}>
+            {showCloneStatus && (
+              <View style={styles.cloneStatusRow}>
+                <View style={styles.cloneBadge}>
+                  <Text style={styles.cloneBadgeText}>⭐ Using Your Voice</Text>
+                </View>
+              </View>
+            )}
+            {!clone.hasClone && <Text style={styles.systemVoiceLabel}>Using System Voice</Text>}
+
+            {showCloneStatus && (
+              <View style={styles.cloneActionsRow}>
+                <Pressable
+                  onPress={onTestClonedVoice}
+                  style={({ pressed }) => [styles.cloneActionButton, pressed && styles.pressedOpacity]}>
+                  <Text style={styles.cloneActionButtonText}>🔊 Test Voice</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => {
+                    clone.startOver();
+                    setIsRerecording(true);
+                  }}
+                  style={({ pressed }) => [styles.cloneActionButton, pressed && styles.pressedOpacity]}>
+                  <Text style={styles.cloneActionButtonText}>🎙️ Re-record</Text>
+                </Pressable>
+                <Pressable
+                  onPress={handleRemoveClone}
+                  style={({ pressed }) => [styles.cloneActionButton, styles.cloneRemoveButton, pressed && styles.pressedOpacity]}>
+                  <Text style={[styles.cloneActionButtonText, styles.cloneRemoveButtonText]}>Remove Clone</Text>
+                </Pressable>
+              </View>
+            )}
+
+            {showCloneFlow && (
+              <VoiceCloneCard
+                stage={clone.stage}
+                durationSeconds={clone.durationSeconds}
+                errorMessage={clone.errorMessage}
+                isPlayingPreview={clone.isPlayingPreview}
+                hasRecording={clone.hasRecording}
+                startRecording={clone.startRecording}
+                stopRecording={clone.stopRecording}
+                playPreview={clone.playPreview}
+                createVoiceClone={clone.createVoiceClone}
+                startOver={clone.startOver}
+                onTestVoice={onTestClonedVoice}
+                onDismissSuccess={() => {
+                  clone.startOver();
+                  setIsRerecording(false);
+                }}
+              />
+            )}
+
+            <View style={styles.divider} />
+
             {ROWS.map((row) => {
               const range = VOICE_SETTING_RANGES[row.key];
               return (
@@ -153,5 +227,62 @@ const styles = StyleSheet.create({
     color: VoiceTheme.textSecondary,
     fontWeight: '600',
     fontSize: 15,
+  },
+  cloneStatusRow: {
+    marginBottom: 6,
+  },
+  cloneBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: VoiceTheme.accent,
+    borderRadius: 14,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  cloneBadgeText: {
+    color: VoiceTheme.onAccent,
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  systemVoiceLabel: {
+    color: VoiceTheme.textSecondary,
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  cloneActionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 8,
+  },
+  cloneActionButton: {
+    flex: 1,
+    minHeight: MIN_TOUCH_TARGET,
+    backgroundColor: VoiceTheme.surface,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: VoiceTheme.border,
+    paddingHorizontal: 6,
+  },
+  pressedOpacity: {
+    opacity: 0.7,
+  },
+  cloneActionButtonText: {
+    color: VoiceTheme.text,
+    fontWeight: '700',
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  cloneRemoveButton: {
+    borderColor: VoiceTheme.danger,
+  },
+  cloneRemoveButtonText: {
+    color: VoiceTheme.danger,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: VoiceTheme.border,
+    marginVertical: 16,
   },
 });

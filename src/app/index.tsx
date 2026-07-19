@@ -11,6 +11,7 @@ import { PhraseGrid } from '@/components/phrase-grid';
 import { QuickCommandsFab } from '@/components/quick-commands-fab';
 import { VoiceSettingsModal } from '@/components/voice-settings-modal';
 import { CATEGORIES, CategoryId, DEFAULT_PHRASES } from '@/constants/phrases';
+import { VOICE_CLONE_TEST_PHRASE } from '@/constants/voice-clone';
 import { MIN_TOUCH_TARGET, VoiceFonts, VoiceTheme } from '@/constants/voice-theme';
 import { useAutoSpeakSchedule } from '@/hooks/use-auto-speak-schedule';
 import { useCustomPhrases } from '@/hooks/use-custom-phrases';
@@ -18,6 +19,7 @@ import { useHistory } from '@/hooks/use-history';
 import { useOnboarding } from '@/hooks/use-onboarding';
 import { useTimeGreeting } from '@/hooks/use-time-greeting';
 import { useVoiceSettings } from '@/hooks/use-voice-settings';
+import { speakText, stopSpeaking as stopSpeechEngine } from '@/services/speech-engine';
 
 const MAX_CHARACTERS = 500;
 
@@ -45,22 +47,16 @@ export default function MyVoiceScreen() {
     const trimmed = text.trim();
     if (!trimmed) return;
 
-    Speech.stop();
-    setIsSpeaking(true);
-    Speech.speak(trimmed, {
-      rate: settings.rate,
-      pitch: settings.pitch,
-      volume: settings.volume,
-      voice: settings.voiceIdentifier ?? undefined,
+    speakText(trimmed, settings, {
+      onStart: () => setIsSpeaking(true),
       onDone: () => setIsSpeaking(false),
-      onStopped: () => setIsSpeaking(false),
       onError: () => setIsSpeaking(false),
     });
     addToHistory(trimmed);
   }
 
   function stopSpeaking() {
-    Speech.stop();
+    stopSpeechEngine();
     setIsSpeaking(false);
   }
 
@@ -77,12 +73,22 @@ export default function MyVoiceScreen() {
   }
 
   function handlePreviewVoice() {
+    // Always previews the system voice/sliders directly, even if a cloned
+    // voice is active — this button is for tuning the system-voice fallback.
     Speech.stop();
     Speech.speak('This is how I sound.', {
       rate: settings.rate,
       pitch: settings.pitch,
       volume: settings.volume,
       voice: settings.voiceIdentifier ?? undefined,
+    });
+  }
+
+  function handleTestClonedVoice() {
+    speakText(VOICE_CLONE_TEST_PHRASE, settings, {
+      onStart: () => setIsSpeaking(true),
+      onDone: () => setIsSpeaking(false),
+      onError: () => setIsSpeaking(false),
     });
   }
 
@@ -230,6 +236,7 @@ export default function MyVoiceScreen() {
         onReset={resetSettings}
         onClose={() => setSettingsVisible(false)}
         onPreview={handlePreviewVoice}
+        onTestClonedVoice={handleTestClonedVoice}
       />
 
       <HistoryModal
