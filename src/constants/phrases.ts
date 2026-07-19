@@ -3,10 +3,12 @@ export type CategoryId =
   | 'conversation'
   | 'commands'
   | 'driveThrough'
+  | 'shopping'
+  | 'phoneCalls'
   | 'medical'
   | 'home'
   | 'feelings'
-  | 'custom';
+  | 'myPhrases';
 
 export interface Category {
   id: CategoryId;
@@ -16,17 +18,19 @@ export interface Category {
 }
 
 export const CATEGORIES: Category[] = [
-  { id: 'greetings', label: 'Greetings', emoji: '👋', color: '#38BDF8' },
-  { id: 'conversation', label: 'Conversation', emoji: '💬', color: '#818CF8' },
+  { id: 'greetings', label: 'Greetings', emoji: '👋', color: '#C084FC' },
+  { id: 'conversation', label: 'Conversation', emoji: '💬', color: '#A78BFA' },
   { id: 'commands', label: 'Quick Commands', emoji: '⚡️', color: '#FB923C' },
-  { id: 'driveThrough', label: 'Drive-Through', emoji: '🚗', color: '#FBBF24' },
+  { id: 'driveThrough', label: 'Drive-Through', emoji: '🚗', color: '#818CF8' },
+  { id: 'shopping', label: 'Shopping', emoji: '🛍️', color: '#F472B6' },
+  { id: 'phoneCalls', label: 'Phone Calls', emoji: '📞', color: '#22D3EE' },
   { id: 'medical', label: 'Medical', emoji: '⚕️', color: '#F87171' },
   { id: 'home', label: 'Home', emoji: '🏠', color: '#34D399' },
-  { id: 'feelings', label: 'Feelings', emoji: '🙂', color: '#F472B6' },
-  { id: 'custom', label: 'Custom', emoji: '⭐️', color: '#A78BFA' },
+  { id: 'feelings', label: 'Feelings', emoji: '🙂', color: '#FB7185' },
+  { id: 'myPhrases', label: 'My Phrases', emoji: '⭐️', color: '#FBBF24' },
 ];
 
-export const DEFAULT_PHRASES: Record<Exclude<CategoryId, 'custom'>, string[]> = {
+export const DEFAULT_PHRASES: Record<Exclude<CategoryId, 'myPhrases'>, string[]> = {
   greetings: [
     'Hello!',
     'Good morning!',
@@ -70,6 +74,26 @@ export const DEFAULT_PHRASES: Record<Exclude<CategoryId, 'custom'>, string[]> = 
     "I'll pay with card",
     'Can you repeat my order?',
     "That's all, thank you",
+  ],
+  shopping: [
+    'How much is this?',
+    'Do you have this in a different size?',
+    "I'd like to return this",
+    'Can I pay with card?',
+    'Where is the fitting room?',
+    'Do you have a discount?',
+    "I'm just browsing",
+    'Can you gift wrap this?',
+  ],
+  phoneCalls: [
+    'Hello, this is me speaking',
+    'Can you hold on a moment?',
+    "I can't hear you well",
+    'Can you call back later?',
+    'I need to end this call now',
+    'Please speak a little slower',
+    'Let me get someone else',
+    'Thank you for calling',
   ],
   medical: [
     "I'm in pain",

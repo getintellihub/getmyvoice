@@ -3,13 +3,18 @@ import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AutoSpeakScheduleModal } from '@/components/auto-speak-schedule-modal';
+import { GreetingBanner } from '@/components/greeting-banner';
 import { HistoryModal } from '@/components/history-modal';
 import { PhraseGrid } from '@/components/phrase-grid';
+import { QuickCommandsFab } from '@/components/quick-commands-fab';
 import { VoiceSettingsModal } from '@/components/voice-settings-modal';
 import { CATEGORIES, CategoryId, DEFAULT_PHRASES } from '@/constants/phrases';
-import { VoiceTheme } from '@/constants/voice-theme';
+import { VoiceFonts, VoiceTheme } from '@/constants/voice-theme';
+import { useAutoSpeakSchedule } from '@/hooks/use-auto-speak-schedule';
 import { useCustomPhrases } from '@/hooks/use-custom-phrases';
 import { useHistory } from '@/hooks/use-history';
+import { useTimeGreeting } from '@/hooks/use-time-greeting';
 import { useVoiceSettings } from '@/hooks/use-voice-settings';
 
 export default function MyVoiceScreen() {
@@ -18,15 +23,18 @@ export default function MyVoiceScreen() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [historyVisible, setHistoryVisible] = useState(false);
+  const [scheduleVisible, setScheduleVisible] = useState(false);
 
   const { settings, updateSetting, resetSettings } = useVoiceSettings();
   const { history, addToHistory, clearHistory } = useHistory();
-  const { phrases: customPhrases, addPhrase, removePhrase } = useCustomPhrases();
+  const { phrases: myPhrases, addPhrase, removePhrase } = useCustomPhrases();
+  const timeGreeting = useTimeGreeting();
 
   const activeCategoryMeta = useMemo(
     () => CATEGORIES.find((category) => category.id === activeCategory) ?? CATEGORIES[0],
     [activeCategory],
   );
+  const quickCommandsCategory = useMemo(() => CATEGORIES.find((category) => category.id === 'commands')!, []);
 
   function speak(text: string) {
     const trimmed = text.trim();
@@ -44,6 +52,8 @@ export default function MyVoiceScreen() {
     });
     addToHistory(trimmed);
   }
+
+  const { schedule, addEntry, toggleEntry, removeEntry } = useAutoSpeakSchedule(speak);
 
   function speakTypedText() {
     speak(inputText);
@@ -77,6 +87,12 @@ export default function MyVoiceScreen() {
               <Text style={styles.iconButtonText}>🕘</Text>
             </Pressable>
             <Pressable
+              accessibilityLabel="Auto-speak schedule"
+              onPress={() => setScheduleVisible(true)}
+              style={({ pressed }) => [styles.iconButton, pressed && styles.iconButtonPressed]}>
+              <Text style={styles.iconButtonText}>⏰</Text>
+            </Pressable>
+            <Pressable
               accessibilityLabel="Voice settings"
               onPress={() => setSettingsVisible(true)}
               style={({ pressed }) => [styles.iconButton, pressed && styles.iconButtonPressed]}>
@@ -84,6 +100,8 @@ export default function MyVoiceScreen() {
             </Pressable>
           </View>
         </View>
+
+        <GreetingBanner greeting={timeGreeting} onSpeak={speak} />
 
         <View style={styles.typeCard}>
           <TextInput
@@ -134,15 +152,21 @@ export default function MyVoiceScreen() {
         <ScrollView style={styles.phraseScroll} contentContainerStyle={styles.phraseScrollContent}>
           <PhraseGrid
             categoryColor={activeCategoryMeta.color}
-            phrases={activeCategory === 'custom' ? [] : DEFAULT_PHRASES[activeCategory]}
+            phrases={activeCategory === 'myPhrases' ? [] : DEFAULT_PHRASES[activeCategory]}
             onSpeak={speak}
-            isCustom={activeCategory === 'custom'}
-            customPhrases={customPhrases}
-            onAddCustomPhrase={addPhrase}
-            onRemoveCustomPhrase={removePhrase}
+            isMyPhrases={activeCategory === 'myPhrases'}
+            myPhrases={myPhrases}
+            onAddPhrase={addPhrase}
+            onRemovePhrase={removePhrase}
           />
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <QuickCommandsFab
+        phrases={DEFAULT_PHRASES.commands}
+        color={quickCommandsCategory.color}
+        onSpeak={speak}
+      />
 
       <VoiceSettingsModal
         visible={settingsVisible}
@@ -159,6 +183,15 @@ export default function MyVoiceScreen() {
         onClose={() => setHistoryVisible(false)}
         onSpeakAgain={speak}
         onClear={clearHistory}
+      />
+
+      <AutoSpeakScheduleModal
+        visible={scheduleVisible}
+        schedule={schedule}
+        onClose={() => setScheduleVisible(false)}
+        onAdd={addEntry}
+        onToggle={toggleEntry}
+        onRemove={removeEntry}
       />
     </SafeAreaView>
   );
@@ -182,8 +215,8 @@ const styles = StyleSheet.create({
   },
   appTitle: {
     color: VoiceTheme.text,
-    fontSize: 28,
-    fontWeight: '800',
+    fontSize: 30,
+    fontFamily: VoiceFonts.display,
   },
   appSubtitle: {
     color: VoiceTheme.textSecondary,
@@ -191,12 +224,12 @@ const styles = StyleSheet.create({
   },
   headerActions: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 8,
   },
   iconButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     backgroundColor: VoiceTheme.surface,
     alignItems: 'center',
     justifyContent: 'center',
@@ -207,11 +240,11 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   iconButtonText: {
-    fontSize: 18,
+    fontSize: 17,
   },
   typeCard: {
     marginHorizontal: 20,
-    marginTop: 8,
+    marginTop: 12,
     backgroundColor: VoiceTheme.surface,
     borderRadius: 20,
     padding: 16,
@@ -241,7 +274,7 @@ const styles = StyleSheet.create({
   speakButtonText: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#04121F',
+    color: VoiceTheme.onAccent,
   },
   categoryScroll: {
     marginTop: 18,
@@ -274,7 +307,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   categoryLabelActive: {
-    color: '#04121F',
+    color: VoiceTheme.onAccent,
   },
   phraseScroll: {
     flex: 1,
@@ -282,5 +315,6 @@ const styles = StyleSheet.create({
   },
   phraseScrollContent: {
     paddingHorizontal: 20,
+    paddingBottom: 100,
   },
 });

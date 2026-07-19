@@ -1,6 +1,6 @@
 import { FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { VoiceTheme } from '@/constants/voice-theme';
+import { VoiceFonts, VoiceTheme } from '@/constants/voice-theme';
 import { HistoryEntry } from '@/hooks/use-history';
 
 interface HistoryModalProps {
@@ -67,7 +67,7 @@ export function HistoryModal({ visible, history, onClose, onSpeakAgain, onClear 
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+    backgroundColor: 'rgba(10,4,24,0.65)',
     justifyContent: 'flex-end',
   },
   sheet: {
@@ -96,8 +96,8 @@ const styles = StyleSheet.create({
   },
   title: {
     color: VoiceTheme.text,
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 22,
+    fontFamily: VoiceFonts.display,
   },
   clearText: {
     color: VoiceTheme.danger,

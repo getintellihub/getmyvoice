@@ -1,13 +1,19 @@
 export const VoiceTheme = {
-  background: '#0B1220',
-  surface: '#141B2E',
-  surfaceElevated: '#1C2540',
-  border: '#26304D',
-  accent: '#38BDF8',
-  accentSoft: '#0EA5E9',
-  text: '#F8FAFC',
-  textSecondary: '#94A3B8',
-  textMuted: '#64748B',
-  danger: '#F87171',
+  background: '#150A28',
+  surface: '#22123F',
+  surfaceElevated: '#301B54',
+  border: '#4A2E7A',
+  accent: '#A855F7',
+  accentSoft: '#9333EA',
+  accentStrong: '#C084FC',
+  text: '#F5F1FF',
+  textSecondary: '#C4B0EA',
+  textMuted: '#8A76B5',
+  danger: '#FB7185',
   success: '#34D399',
+  onAccent: '#1B0B33',
+} as const;
+
+export const VoiceFonts = {
+  display: 'DMSerifDisplay_400Regular',
 } as const;

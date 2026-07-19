@@ -8,32 +8,32 @@ interface PhraseGridProps {
   categoryColor: string;
   phrases: string[];
   onSpeak: (text: string) => void;
-  isCustom?: boolean;
-  customPhrases?: CustomPhrase[];
-  onAddCustomPhrase?: (text: string) => void;
-  onRemoveCustomPhrase?: (id: string) => void;
+  isMyPhrases?: boolean;
+  myPhrases?: CustomPhrase[];
+  onAddPhrase?: (text: string) => void;
+  onRemovePhrase?: (id: string) => void;
 }
 
 export function PhraseGrid({
   categoryColor,
   phrases,
   onSpeak,
-  isCustom,
-  customPhrases = [],
-  onAddCustomPhrase,
-  onRemoveCustomPhrase,
+  isMyPhrases,
+  myPhrases = [],
+  onAddPhrase,
+  onRemovePhrase,
 }: PhraseGridProps) {
   const [newPhrase, setNewPhrase] = useState('');
 
   function handleAdd() {
     if (!newPhrase.trim()) return;
-    onAddCustomPhrase?.(newPhrase);
+    onAddPhrase?.(newPhrase);
     setNewPhrase('');
   }
 
   return (
     <View style={styles.wrap}>
-      {isCustom && (
+      {isMyPhrases && (
         <View style={styles.addRow}>
           <TextInput
             value={newPhrase}
@@ -52,7 +52,7 @@ export function PhraseGrid({
         </View>
       )}
 
-      {isCustom && customPhrases.length === 0 && phrases.length === 0 && (
+      {isMyPhrases && myPhrases.length === 0 && phrases.length === 0 && (
         <Text style={styles.emptyText}>No custom phrases yet. Add one above!</Text>
       )}
 
@@ -70,12 +70,12 @@ export function PhraseGrid({
           </Pressable>
         ))}
 
-        {isCustom &&
-          customPhrases.map((phrase) => (
+        {isMyPhrases &&
+          myPhrases.map((phrase) => (
             <Pressable
               key={phrase.id}
               onPress={() => onSpeak(phrase.text)}
-              onLongPress={() => onRemoveCustomPhrase?.(phrase.id)}
+              onLongPress={() => onRemovePhrase?.(phrase.id)}
               style={({ pressed }) => [
                 styles.chip,
                 styles.customChip,
@@ -85,7 +85,7 @@ export function PhraseGrid({
               <Text style={styles.chipText}>{phrase.text}</Text>
               <Pressable
                 accessibilityLabel={`Remove ${phrase.text}`}
-                onPress={() => onRemoveCustomPhrase?.(phrase.id)}
+                onPress={() => onRemovePhrase?.(phrase.id)}
                 style={styles.removeButton}>
                 <Text style={styles.removeButtonText}>✕</Text>
               </Pressable>
@@ -93,7 +93,7 @@ export function PhraseGrid({
           ))}
       </View>
 
-      {isCustom && customPhrases.length > 0 && (
+      {isMyPhrases && myPhrases.length > 0 && (
         <Text style={styles.hintText}>Tap to speak · long-press or tap ✕ to remove</Text>
       )}
     </View>
@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   addButtonText: {
-    color: '#04121F',
+    color: VoiceTheme.onAccent,
     fontWeight: '700',
   },
   emptyText: {
