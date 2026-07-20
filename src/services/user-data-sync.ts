@@ -36,16 +36,22 @@ function usersDoc(userId: string) {
   return doc(db, 'users', userId);
 }
 
-function requireUid(explicitUid?: string): string {
-  const uid = explicitUid || auth.currentUser?.uid;
-  if (!uid) {
-    throw new Error('Not signed in');
-  }
-  return uid;
+/** Never throws — returns null when logged out. */
+function getUid(explicitUid?: string): string | null {
+  return explicitUid || auth.currentUser?.uid || null;
+}
+
+function emptyUserData(): SyncedUserData {
+  return {
+    ...EMPTY_DATA,
+    voiceSettings: { ...DEFAULT_VOICE_SETTINGS },
+    customPhrases: [],
+    history: [],
+  };
 }
 
 function normalizeCloudData(raw: Record<string, unknown> | undefined): SyncedUserData {
-  if (!raw) return { ...EMPTY_DATA, voiceSettings: { ...DEFAULT_VOICE_SETTINGS } };
+  if (!raw) return emptyUserData();
 
   const voiceSettingsRaw =
     raw.voiceSettings && typeof raw.voiceSettings === 'object'
@@ -154,7 +160,6 @@ async function hydrateFromCloudOrLocal(userId: string): Promise<SyncedUserData> 
   }
 
   const local = await readLocalData();
-  // First-time cloud docs for brand-new accounts keep onboarding incomplete.
   const seeded: SyncedUserData = {
     ...EMPTY_DATA,
     ...local,
@@ -186,9 +191,16 @@ export async function clearLocalUserCache(): Promise<void> {
   ]);
 }
 
-/** Ensures cloud→local hydration for the signed-in Firebase UID. */
+/**
+ * Ensures cloud→local hydration for the signed-in Firebase UID.
+ * When logged out, resolves to empty data — never throws.
+ */
 export function ensureUserDataHydrated(explicitUid?: string): Promise<SyncedUserData> {
-  const uid = requireUid(explicitUid);
+  const uid = getUid(explicitUid);
+  if (!uid) {
+    console.log(`${LOG} skip hydrate — not signed in`);
+    return Promise.resolve(emptyUserData());
+  }
 
   if (!hydratePromise || hydrateUid !== uid) {
     hydrateUid = uid;
@@ -205,8 +217,12 @@ export function ensureUserDataHydrated(explicitUid?: string): Promise<SyncedUser
 
 async function dualWrite(partial: Partial<SyncedUserData>, localWriter: () => Promise<void>): Promise<void> {
   await localWriter();
+  const userId = getUid();
+  if (!userId) {
+    console.log(`${LOG} skip cloud write — not signed in`, Object.keys(partial));
+    return;
+  }
   try {
-    const userId = requireUid();
     await writeCloudData(userId, partial);
     console.log(`${LOG} dual-write ok`, Object.keys(partial));
   } catch (error) {
@@ -215,7 +231,7 @@ async function dualWrite(partial: Partial<SyncedUserData>, localWriter: () => Pr
 }
 
 export async function syncGetUserVoiceId(): Promise<string | null> {
-  if (!auth.currentUser) return null;
+  if (!getUid()) return null;
   await ensureUserDataHydrated();
   return AsyncStorage.getItem(STORAGE_KEYS.userVoiceId);
 }

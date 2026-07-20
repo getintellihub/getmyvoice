@@ -19,6 +19,7 @@ export function useVoiceSettings() {
   useEffect(() => {
     ensureUserDataHydrated()
       .then((data) => setSettings(data.voiceSettings))
+      .catch((error) => console.warn('[useVoiceSettings] hydrate failed', error))
       .finally(() => setIsLoaded(true));
   }, []);
 

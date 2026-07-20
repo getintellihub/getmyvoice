@@ -12,29 +12,39 @@ SplashScreen.preventAutoHideAsync();
 
 const AUTH_ROUTES = new Set(['sign-in', 'sign-up', 'forgot-password']);
 
+function LoadingScreen() {
+  return <View style={{ flex: 1, backgroundColor: VoiceTheme.background }} />;
+}
+
+/**
+ * Keeps the navigator mounted so redirects work, and sends logged-out users
+ * to Sign In. Sync hooks must tolerate a null user (they no longer throw).
+ */
 function AuthNavigationGate({ children }: { children: ReactNode }) {
   const { user, isLoading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
+  const root = segments[0];
+  const onAuthScreen = typeof root === 'string' && AUTH_ROUTES.has(root);
+
   useEffect(() => {
     if (isLoading) return;
 
-    const root = segments[0];
-    const onAuthScreen = typeof root === 'string' && AUTH_ROUTES.has(root);
-
     if (!user && !onAuthScreen) {
+      console.log('[AuthGate] no user — redirecting to Sign In');
       router.replace('/sign-in' as Href);
       return;
     }
 
     if (user && onAuthScreen) {
+      console.log('[AuthGate] signed in — redirecting to app');
       router.replace('/' as Href);
     }
-  }, [user, isLoading, segments, router]);
+  }, [user, isLoading, onAuthScreen, router]);
 
   if (isLoading) {
-    return <View style={{ flex: 1, backgroundColor: VoiceTheme.background }} />;
+    return <LoadingScreen />;
   }
 
   return <>{children}</>;
@@ -64,10 +74,10 @@ function RootNavigator() {
             headerShown: false,
             contentStyle: { backgroundColor: VoiceTheme.background },
           }}>
-          <Stack.Screen name="index" />
           <Stack.Screen name="sign-in" />
           <Stack.Screen name="sign-up" />
           <Stack.Screen name="forgot-password" />
+          <Stack.Screen name="index" />
           <Stack.Screen
             name="voice-settings"
             options={{

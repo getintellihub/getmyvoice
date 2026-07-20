@@ -12,6 +12,7 @@ export function useCustomPhrases() {
   useEffect(() => {
     ensureUserDataHydrated()
       .then((data) => setPhrases(data.customPhrases))
+      .catch((error) => console.warn('[useCustomPhrases] hydrate failed', error))
       .finally(() => setIsLoaded(true));
   }, []);
 

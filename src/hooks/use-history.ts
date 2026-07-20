@@ -14,6 +14,7 @@ export function useHistory() {
   useEffect(() => {
     ensureUserDataHydrated()
       .then((data) => setHistory(data.history))
+      .catch((error) => console.warn('[useHistory] hydrate failed', error))
       .finally(() => setIsLoaded(true));
   }, []);
 
