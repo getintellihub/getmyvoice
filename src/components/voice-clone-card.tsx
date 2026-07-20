@@ -26,6 +26,15 @@ interface VoiceCloneCardProps {
   onDismissSuccess: () => void;
 }
 
+function ScriptBlock() {
+  return (
+    <View style={styles.scriptBox}>
+      <Text style={styles.scriptTitle}>Reading script</Text>
+      <Text style={styles.scriptText}>{VOICE_CLONE_SCRIPT}</Text>
+    </View>
+  );
+}
+
 export function VoiceCloneCard({
   stage,
   durationSeconds,
@@ -50,7 +59,7 @@ export function VoiceCloneCard({
       </Text>
 
       {stage === 'intro' && (
-        <>
+        <View style={styles.stageBlock}>
           <View style={styles.tipsBox}>
             <Text style={styles.tipsTitle}>Before you start</Text>
             {RECORDING_TIPS.map((tip) => (
@@ -59,31 +68,32 @@ export function VoiceCloneCard({
               </Text>
             ))}
           </View>
+
+          <ScriptBlock />
+
           <Pressable
             onPress={startRecording}
-            style={({ pressed }) => [styles.recordButton, pressed && styles.recordButtonPressed]}>
+            style={({ pressed }) => [styles.recordButton, styles.bottomAction, pressed && styles.recordButtonPressed]}>
             <Text style={styles.recordButtonText}>🎙️ Record</Text>
           </Pressable>
-        </>
+        </View>
       )}
 
       {stage === 'recording' && (
-        <>
+        <View style={styles.stageBlock}>
           <Text style={styles.timer}>{formatDuration(durationSeconds)}</Text>
-          <View style={styles.scriptBox}>
-            <Text style={styles.scriptTitle}>Read this, or say anything for 30-60 seconds:</Text>
-            <Text style={styles.scriptText}>{VOICE_CLONE_SCRIPT}</Text>
-          </View>
+          <Text style={styles.recordingHint}>Read the script below, or say anything for 30-60 seconds.</Text>
+          <ScriptBlock />
           <Pressable
             onPress={stopRecording}
-            style={({ pressed }) => [styles.stopButton, pressed && styles.stopButtonPressed]}>
+            style={({ pressed }) => [styles.stopButton, styles.bottomAction, pressed && styles.stopButtonPressed]}>
             <Text style={styles.recordButtonText}>⏹ Stop Recording</Text>
           </Pressable>
-        </>
+        </View>
       )}
 
       {stage === 'recorded' && (
-        <>
+        <View style={styles.stageBlock}>
           <Text style={styles.recordedLabel}>Recorded {formatDuration(durationSeconds)}</Text>
           {durationSeconds < MIN_RECORDING_SECONDS && (
             <Text style={styles.durationHint}>
@@ -119,12 +129,13 @@ export function VoiceCloneCard({
             disabled={durationSeconds < MIN_RECORDING_SECONDS}
             style={({ pressed }) => [
               styles.recordButton,
+              styles.bottomAction,
               durationSeconds < MIN_RECORDING_SECONDS && styles.recordButtonDisabled,
               pressed && durationSeconds >= MIN_RECORDING_SECONDS && styles.recordButtonPressed,
             ]}>
             <Text style={styles.recordButtonText}>✨ Create My Voice</Text>
           </Pressable>
-        </>
+        </View>
       )}
 
       {stage === 'uploading' && (
@@ -168,7 +179,7 @@ const styles = StyleSheet.create({
     backgroundColor: VoiceTheme.surfaceElevated,
     borderRadius: 20,
     padding: 18,
-    gap: 14,
+    gap: 16,
     borderWidth: 1,
     borderColor: VoiceTheme.border,
   },
@@ -182,6 +193,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     marginTop: -6,
+  },
+  stageBlock: {
+    gap: 16,
   },
   tipsBox: {
     backgroundColor: VoiceTheme.surface,
@@ -201,6 +215,27 @@ const styles = StyleSheet.create({
     color: VoiceTheme.textSecondary,
     fontSize: 13,
     lineHeight: 19,
+  },
+  scriptBox: {
+    backgroundColor: VoiceTheme.surface,
+    borderRadius: 14,
+    padding: 14,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: VoiceTheme.border,
+  },
+  scriptTitle: {
+    color: VoiceTheme.accentStrong,
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  scriptText: {
+    color: VoiceTheme.textSecondary,
+    fontSize: 14,
+    lineHeight: 22,
+  },
+  bottomAction: {
+    marginTop: 4,
   },
   recordButton: {
     minHeight: MIN_TOUCH_TARGET,
@@ -224,7 +259,6 @@ const styles = StyleSheet.create({
     color: VoiceTheme.textMuted,
     fontSize: 13,
     textAlign: 'center',
-    marginTop: -6,
   },
   timer: {
     color: VoiceTheme.text,
@@ -232,24 +266,11 @@ const styles = StyleSheet.create({
     fontFamily: VoiceFonts.display,
     textAlign: 'center',
   },
-  scriptBox: {
-    backgroundColor: VoiceTheme.surface,
-    borderRadius: 14,
-    padding: 14,
-    gap: 8,
-    borderWidth: 1,
-    borderColor: VoiceTheme.border,
-    maxHeight: 160,
-  },
-  scriptTitle: {
-    color: VoiceTheme.accentStrong,
-    fontWeight: '700',
-    fontSize: 13,
-  },
-  scriptText: {
+  recordingHint: {
     color: VoiceTheme.textSecondary,
     fontSize: 14,
-    lineHeight: 21,
+    textAlign: 'center',
+    lineHeight: 20,
   },
   stopButton: {
     minHeight: MIN_TOUCH_TARGET,
