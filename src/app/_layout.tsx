@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import { useColorScheme } from 'react-native';
 
 import { VoiceTheme } from '@/constants/voice-theme';
+import { ensureUserDataHydrated } from '@/services/user-data-sync';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -14,6 +15,11 @@ export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
     DMSerifDisplay_400Regular,
   });
+
+  useEffect(() => {
+    // Pull Firestore user data (then AsyncStorage fallback) as early as possible.
+    ensureUserDataHydrated().catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     if (fontsLoaded || fontError) {

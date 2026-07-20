@@ -1,21 +1,10 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useState } from 'react';
 
-const STORAGE_KEY = 'myvoice:voice-settings';
+import { ensureUserDataHydrated, syncSetVoiceSettings } from '@/services/user-data-sync';
+import { DEFAULT_VOICE_SETTINGS, type VoiceSettings } from '@/types/synced-user-data';
 
-export interface VoiceSettings {
-  rate: number;
-  pitch: number;
-  volume: number;
-  voiceIdentifier: string | null;
-}
-
-export const DEFAULT_VOICE_SETTINGS: VoiceSettings = {
-  rate: 1,
-  pitch: 1,
-  volume: 1,
-  voiceIdentifier: null,
-};
+export type { VoiceSettings };
+export { DEFAULT_VOICE_SETTINGS };
 
 export const VOICE_SETTING_RANGES = {
   rate: { min: 0.5, max: 2, step: 0.1 },
@@ -28,10 +17,8 @@ export function useVoiceSettings() {
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY)
-      .then((raw) => {
-        if (raw) setSettings({ ...DEFAULT_VOICE_SETTINGS, ...JSON.parse(raw) });
-      })
+    ensureUserDataHydrated()
+      .then((data) => setSettings(data.voiceSettings))
       .finally(() => setIsLoaded(true));
   }, []);
 
@@ -40,7 +27,7 @@ export function useVoiceSettings() {
       const range = VOICE_SETTING_RANGES[key];
       const clamped = Math.min(range.max, Math.max(range.min, Number(value.toFixed(1))));
       const next = { ...previous, [key]: clamped };
-      AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)).catch(() => undefined);
+      syncSetVoiceSettings(next).catch(() => undefined);
       return next;
     });
   }, []);
@@ -48,14 +35,14 @@ export function useVoiceSettings() {
   const setVoiceIdentifier = useCallback((voiceIdentifier: string | null) => {
     setSettings((previous) => {
       const next = { ...previous, voiceIdentifier };
-      AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)).catch(() => undefined);
+      syncSetVoiceSettings(next).catch(() => undefined);
       return next;
     });
   }, []);
 
   const resetSettings = useCallback(() => {
     setSettings(DEFAULT_VOICE_SETTINGS);
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_VOICE_SETTINGS)).catch(() => undefined);
+    syncSetVoiceSettings(DEFAULT_VOICE_SETTINGS).catch(() => undefined);
   }, []);
 
   return { settings, isLoaded, updateSetting, setVoiceIdentifier, resetSettings };

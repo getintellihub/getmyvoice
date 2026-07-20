@@ -1,4 +1,3 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   createAudioPlayer,
   setAudioModeAsync,
@@ -10,8 +9,8 @@ import * as Speech from 'expo-speech';
 import { Platform } from 'react-native';
 
 import { getApiUrl } from '@/api';
+import { syncGetUserVoiceId, syncSetUserVoiceId } from '@/services/user-data-sync';
 
-const USER_VOICE_ID_KEY = 'userVoiceId';
 const LOG = '[speech-engine]';
 
 let activePlayer: AudioPlayer | null = null;
@@ -19,19 +18,14 @@ let activeSubscription: { remove: () => void } | null = null;
 let activeBlobUri: string | null = null;
 
 export async function getUserVoiceId(): Promise<string | null> {
-  const value = await AsyncStorage.getItem(USER_VOICE_ID_KEY);
-  console.log(`${LOG} getUserVoiceId key="${USER_VOICE_ID_KEY}" →`, value);
+  const value = await syncGetUserVoiceId();
+  console.log(`${LOG} getUserVoiceId →`, value);
   return value;
 }
 
 export async function setUserVoiceId(voiceId: string | null): Promise<void> {
-  if (voiceId) {
-    await AsyncStorage.setItem(USER_VOICE_ID_KEY, voiceId);
-    console.log(`${LOG} setUserVoiceId saved key="${USER_VOICE_ID_KEY}" value=`, voiceId);
-  } else {
-    await AsyncStorage.removeItem(USER_VOICE_ID_KEY);
-    console.log(`${LOG} setUserVoiceId removed key="${USER_VOICE_ID_KEY}"`);
-  }
+  await syncSetUserVoiceId(voiceId);
+  console.log(`${LOG} setUserVoiceId dual-wrote`, voiceId);
 }
 
 async function unloadActivePlayer() {
