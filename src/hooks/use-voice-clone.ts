@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 
 import { MAX_RECORDING_SECONDS, MIN_RECORDING_SECONDS } from '@/constants/voice-clone';
-import { getCloudFunctionUrl } from '@/firebase';
+import { getApiUrl } from '@/api';
 
 const STORAGE_KEY = 'userVoiceId';
 const FRIENDLY_ERROR = 'Something went wrong creating your voice. Please try again in a quiet environment.';
@@ -384,7 +384,7 @@ export function useVoiceClone() {
           });
         }
 
-        const response = await fetch(getCloudFunctionUrl('cloneVoice'), {
+        const response = await fetch(getApiUrl('cloneVoice'), {
           method: 'POST',
           body: formData,
         });

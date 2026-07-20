@@ -18,7 +18,9 @@
     "expo-splash-screen": "~31.0.13",
     "expo-status-bar": "~3.0.9",
     "expo-system-ui": "~6.0.9",
+    "express": "^5.2.1",
     "firebase": "^12.16.0",
+    "multer": "^2.2.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
@@ -41,7 +43,8 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "build:web": "expo export -p web",
-    "serve:web": "node server.js"
+    "serve:web": "node server.js",
+    "serve:api": "node server.js"
   },
   "private": true
 }

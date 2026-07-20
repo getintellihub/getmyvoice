@@ -1,9 +1,8 @@
-// Firebase project config from the Firebase console.
+// Firebase project config from the Firebase console (kept for reference / future use).
 //
-// NOTE: These values identify your Firebase project — they are safe to ship
-// in the app. The ElevenLabs API key is NOT stored here; it lives only in
-// Firebase's server-side secret manager (see functions/index.js) and is
-// never exposed to the app.
+// Voice cloning and TTS now run on the Railway Express server (see src/api.js
+// and server.js). The ElevenLabs API key lives only as Railway env var
+// ELEVENLABS_API_KEY — never in the app.
 export const firebaseConfig = {
   apiKey: 'AIzaSyAyBtQ8rEOiPFiOUr4Y7hqcwoRYS0nWRLU',
   authDomain: 'getmyvoice-83d97.firebaseapp.com',
@@ -13,22 +12,5 @@ export const firebaseConfig = {
   appId: '1:882330948987:web:730892c57e911d89b819de',
 };
 
-// Deployed Cloud Run HTTPS endpoints for the Firebase functions.
-export const CLOUD_FUNCTION_URLS = {
-  cloneVoice: 'https://clonevoice-3vl6syrnqq-uc.a.run.app',
-  speak: 'https://speak-3vl6syrnqq-uc.a.run.app',
-};
-
-/**
- * Returns the HTTPS URL for a deployed Cloud Function.
- * We call functions directly over HTTPS with fetch — rather than the Firebase
- * JS SDK's callable client — so multipart audio uploads work the same way in
- * Expo Go as they do in a production build.
- */
-export function getCloudFunctionUrl(functionName) {
-  const url = CLOUD_FUNCTION_URLS[functionName];
-  if (!url) {
-    throw new Error(`Unknown Cloud Function: ${functionName}`);
-  }
-  return url;
-}
+// Re-export API helpers so existing imports from '@/firebase' keep working.
+export { API_BASE_URL, API_ROUTES, getApiUrl, getCloudFunctionUrl } from './api';

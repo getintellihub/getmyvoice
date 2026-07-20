@@ -3,7 +3,7 @@ import { Audio, AVPlaybackStatus } from 'expo-av';
 import { File, Paths } from 'expo-file-system';
 import * as Speech from 'expo-speech';
 
-import { getCloudFunctionUrl } from '@/firebase';
+import { getApiUrl } from '@/api';
 
 const USER_VOICE_ID_KEY = 'userVoiceId';
 
@@ -30,7 +30,7 @@ async function unloadActiveSound() {
 }
 
 async function speakWithClonedVoice(text: string, voiceId: string, onDone?: () => void) {
-  const response = await fetch(getCloudFunctionUrl('speak'), {
+  const response = await fetch(getApiUrl('speak'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text, voice_id: voiceId }),

@@ -10,7 +10,7 @@
     }
   },
   "deploy": {
-    "startCommand": "npm run serve:web",
+    "startCommand": "node server.js",
     "inputs": [{ "step": "build" }]
   }
 }
