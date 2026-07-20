@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SliderControl } from '@/components/slider-control';
 import { VoiceCloneCard } from '@/components/voice-clone-card';
@@ -35,6 +36,7 @@ export function VoiceSettingsModal({
   onPreview,
   onTestClonedVoice,
 }: VoiceSettingsModalProps) {
+  const insets = useSafeAreaInsets();
   const [isRerecording, setIsRerecording] = useState(false);
   const clone = useVoiceClone();
 
@@ -53,11 +55,16 @@ export function VoiceSettingsModal({
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           <View style={styles.handle} />
           <Text style={styles.title}>Voice Settings</Text>
 
-          <ScrollView showsVerticalScrollIndicator={false}>
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator
+            keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled>
             {showCloneStatus && (
               <View style={styles.cloneStatusRow}>
                 <View style={styles.cloneBadge}>
@@ -90,28 +97,6 @@ export function VoiceSettingsModal({
               </View>
             )}
 
-            {showCloneFlow && (
-              <VoiceCloneCard
-                stage={clone.stage}
-                durationSeconds={clone.durationSeconds}
-                errorMessage={clone.errorMessage}
-                isPlayingPreview={clone.isPlayingPreview}
-                hasRecording={clone.hasRecording}
-                startRecording={clone.startRecording}
-                stopRecording={clone.stopRecording}
-                playPreview={clone.playPreview}
-                createVoiceClone={clone.createVoiceClone}
-                startOver={clone.startOver}
-                onTestVoice={onTestClonedVoice}
-                onDismissSuccess={() => {
-                  clone.startOver();
-                  setIsRerecording(false);
-                }}
-              />
-            )}
-
-            <View style={styles.divider} />
-
             {ROWS.map((row) => {
               const range = VOICE_SETTING_RANGES[row.key];
               return (
@@ -141,6 +126,28 @@ export function VoiceSettingsModal({
                 <Text style={styles.resetButtonText}>Reset</Text>
               </Pressable>
             </View>
+
+            {showCloneFlow && <View style={styles.divider} />}
+
+            {showCloneFlow && (
+              <VoiceCloneCard
+                stage={clone.stage}
+                durationSeconds={clone.durationSeconds}
+                errorMessage={clone.errorMessage}
+                isPlayingPreview={clone.isPlayingPreview}
+                hasRecording={clone.hasRecording}
+                startRecording={clone.startRecording}
+                stopRecording={clone.stopRecording}
+                playPreview={clone.playPreview}
+                createVoiceClone={clone.createVoiceClone}
+                startOver={clone.startOver}
+                onTestVoice={onTestClonedVoice}
+                onDismissSuccess={() => {
+                  clone.startOver();
+                  setIsRerecording(false);
+                }}
+              />
+            )}
           </ScrollView>
 
           <Pressable onPress={onClose} style={({ pressed }) => [styles.closeButton, pressed && styles.closeButtonPressed]}>
@@ -164,8 +171,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 28,
     paddingHorizontal: 20,
     paddingTop: 12,
-    paddingBottom: 32,
-    gap: 20,
+    maxHeight: '92%',
     borderTopWidth: 1,
     borderColor: VoiceTheme.border,
   },
@@ -175,11 +181,21 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     backgroundColor: VoiceTheme.border,
     alignSelf: 'center',
+    marginBottom: 12,
   },
   title: {
     color: VoiceTheme.text,
     fontSize: 22,
     fontFamily: VoiceFonts.display,
+    marginBottom: 12,
+  },
+  scroll: {
+    flexGrow: 0,
+    flexShrink: 1,
+  },
+  scrollContent: {
+    paddingBottom: 48,
+    gap: 16,
   },
   actionsRow: {
     flexDirection: 'row',
@@ -218,7 +234,8 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 14,
+    marginTop: 8,
   },
   closeButtonPressed: {
     opacity: 0.6,
@@ -283,6 +300,6 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     backgroundColor: VoiceTheme.border,
-    marginVertical: 16,
+    marginVertical: 8,
   },
 });
