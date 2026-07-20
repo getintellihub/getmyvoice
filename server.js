@@ -219,7 +219,7 @@ if (fs.existsSync(DIST_DIR)) {
   });
 }
 
-app.listen(PORT, () => {
-  console.log(`MyVoice server listening on port ${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`MyVoice server listening on 0.0.0.0:${PORT}`);
   console.log(`ElevenLabs key configured: ${Boolean(ELEVENLABS_API_KEY)}`);
 });
