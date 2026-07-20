@@ -1,5 +1,16 @@
 import { useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Alert,
+  Dimensions,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  type ViewStyle,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SliderControl } from '@/components/slider-control';
@@ -25,6 +36,18 @@ const ROWS: { key: keyof typeof VOICE_SETTING_RANGES; label: string; hint: strin
   { key: 'pitch', label: 'Pitch', hint: 'How high or low the voice sounds', suffix: 'x' },
   { key: 'volume', label: 'Volume', hint: 'How loud the voice is', suffix: '' },
 ];
+
+const SHEET_HEIGHT = Math.round(Dimensions.get('window').height * 0.92);
+
+// iOS Safari needs explicit overflow + momentum scrolling on the scroll container.
+const webScrollStyle = Platform.OS === 'web'
+  ? ({
+      overflowY: 'scroll',
+      WebkitOverflowScrolling: 'touch',
+      overscrollBehavior: 'contain',
+      touchAction: 'pan-y',
+    } as ViewStyle)
+  : null;
 
 export function VoiceSettingsModal({
   visible,
@@ -52,103 +75,123 @@ export function VoiceSettingsModal({
   const showCloneFlow = !clone.hasClone || isRerecording || clone.stage !== 'intro';
   const showCloneStatus = clone.hasClone && !showCloneFlow;
 
+  const scrollBody = (
+    <>
+      {showCloneStatus && (
+        <View style={styles.cloneStatusRow}>
+          <View style={styles.cloneBadge}>
+            <Text style={styles.cloneBadgeText}>⭐ Using Your Voice</Text>
+          </View>
+        </View>
+      )}
+      {!clone.hasClone && <Text style={styles.systemVoiceLabel}>Using System Voice</Text>}
+
+      {showCloneStatus && (
+        <View style={styles.cloneActionsRow}>
+          <Pressable
+            onPress={onTestClonedVoice}
+            style={({ pressed }) => [styles.cloneActionButton, pressed && styles.pressedOpacity]}>
+            <Text style={styles.cloneActionButtonText}>🔊 Test Voice</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              clone.startOver();
+              setIsRerecording(true);
+            }}
+            style={({ pressed }) => [styles.cloneActionButton, pressed && styles.pressedOpacity]}>
+            <Text style={styles.cloneActionButtonText}>🎙️ Re-record</Text>
+          </Pressable>
+          <Pressable
+            onPress={handleRemoveClone}
+            style={({ pressed }) => [styles.cloneActionButton, styles.cloneRemoveButton, pressed && styles.pressedOpacity]}>
+            <Text style={[styles.cloneActionButtonText, styles.cloneRemoveButtonText]}>Remove Clone</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {showCloneFlow && (
+        <VoiceCloneCard
+          stage={clone.stage}
+          durationSeconds={clone.durationSeconds}
+          errorMessage={clone.errorMessage}
+          isPlayingPreview={clone.isPlayingPreview}
+          hasRecording={clone.hasRecording}
+          startRecording={clone.startRecording}
+          stopRecording={clone.stopRecording}
+          playPreview={clone.playPreview}
+          createVoiceClone={clone.createVoiceClone}
+          startOver={clone.startOver}
+          onTestVoice={onTestClonedVoice}
+          onDismissSuccess={() => {
+            clone.startOver();
+            setIsRerecording(false);
+          }}
+        />
+      )}
+
+      <View style={styles.divider} />
+
+      <VoiceSelector voiceIdentifier={settings.voiceIdentifier} onChange={onVoiceChange} />
+
+      {ROWS.map((row) => {
+        const range = VOICE_SETTING_RANGES[row.key];
+        return (
+          <SliderControl
+            key={row.key}
+            label={row.label}
+            hint={row.hint}
+            value={settings[row.key]}
+            min={range.min}
+            max={range.max}
+            step={range.step}
+            formatValue={(value) => `${value.toFixed(1)}${row.suffix}`}
+            onChange={(value) => onChange(row.key, value)}
+          />
+        );
+      })}
+
+      <View style={styles.actionsRow}>
+        <Pressable
+          onPress={onPreview}
+          style={({ pressed }) => [styles.previewButton, pressed && styles.previewButtonPressed]}>
+          <Text style={styles.previewButtonText}>🔊 Preview voice</Text>
+        </Pressable>
+        <Pressable onPress={onReset} style={({ pressed }) => [styles.resetButton, pressed && styles.resetButtonPressed]}>
+          <Text style={styles.resetButtonText}>Reset</Text>
+        </Pressable>
+      </View>
+    </>
+  );
+
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-          <View style={styles.handle} />
-          <Text style={styles.title}>Voice Settings</Text>
+        <View
+          style={[
+            styles.sheet,
+            {
+              height: SHEET_HEIGHT,
+              paddingBottom: Math.max(insets.bottom, 16),
+            },
+          ]}>
+          <View style={styles.header}>
+            <View style={styles.handle} />
+            <Text style={styles.title}>Voice Settings</Text>
+          </View>
 
-          <ScrollView
-            style={styles.scroll}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator
-            keyboardShouldPersistTaps="handled"
-            nestedScrollEnabled>
-            {showCloneStatus && (
-              <View style={styles.cloneStatusRow}>
-                <View style={styles.cloneBadge}>
-                  <Text style={styles.cloneBadgeText}>⭐ Using Your Voice</Text>
-                </View>
-              </View>
-            )}
-            {!clone.hasClone && <Text style={styles.systemVoiceLabel}>Using System Voice</Text>}
-
-            {showCloneStatus && (
-              <View style={styles.cloneActionsRow}>
-                <Pressable
-                  onPress={onTestClonedVoice}
-                  style={({ pressed }) => [styles.cloneActionButton, pressed && styles.pressedOpacity]}>
-                  <Text style={styles.cloneActionButtonText}>🔊 Test Voice</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => {
-                    clone.startOver();
-                    setIsRerecording(true);
-                  }}
-                  style={({ pressed }) => [styles.cloneActionButton, pressed && styles.pressedOpacity]}>
-                  <Text style={styles.cloneActionButtonText}>🎙️ Re-record</Text>
-                </Pressable>
-                <Pressable
-                  onPress={handleRemoveClone}
-                  style={({ pressed }) => [styles.cloneActionButton, styles.cloneRemoveButton, pressed && styles.pressedOpacity]}>
-                  <Text style={[styles.cloneActionButtonText, styles.cloneRemoveButtonText]}>Remove Clone</Text>
-                </Pressable>
-              </View>
-            )}
-
-            {ROWS.map((row) => {
-              const range = VOICE_SETTING_RANGES[row.key];
-              return (
-                <SliderControl
-                  key={row.key}
-                  label={row.label}
-                  hint={row.hint}
-                  value={settings[row.key]}
-                  min={range.min}
-                  max={range.max}
-                  step={range.step}
-                  formatValue={(value) => `${value.toFixed(1)}${row.suffix}`}
-                  onChange={(value) => onChange(row.key, value)}
-                />
-              );
-            })}
-
-            <VoiceSelector voiceIdentifier={settings.voiceIdentifier} onChange={onVoiceChange} />
-
-            <View style={styles.actionsRow}>
-              <Pressable
-                onPress={onPreview}
-                style={({ pressed }) => [styles.previewButton, pressed && styles.previewButtonPressed]}>
-                <Text style={styles.previewButtonText}>🔊 Preview voice</Text>
-              </Pressable>
-              <Pressable onPress={onReset} style={({ pressed }) => [styles.resetButton, pressed && styles.resetButtonPressed]}>
-                <Text style={styles.resetButtonText}>Reset</Text>
-              </Pressable>
-            </View>
-
-            {showCloneFlow && <View style={styles.divider} />}
-
-            {showCloneFlow && (
-              <VoiceCloneCard
-                stage={clone.stage}
-                durationSeconds={clone.durationSeconds}
-                errorMessage={clone.errorMessage}
-                isPlayingPreview={clone.isPlayingPreview}
-                hasRecording={clone.hasRecording}
-                startRecording={clone.startRecording}
-                stopRecording={clone.stopRecording}
-                playPreview={clone.playPreview}
-                createVoiceClone={clone.createVoiceClone}
-                startOver={clone.startOver}
-                onTestVoice={onTestClonedVoice}
-                onDismissSuccess={() => {
-                  clone.startOver();
-                  setIsRerecording(false);
-                }}
-              />
-            )}
-          </ScrollView>
+          {Platform.OS === 'web' ? (
+            <View style={[styles.scroll, webScrollStyle]}>{scrollBody}</View>
+          ) : (
+            <ScrollView
+              style={styles.scroll}
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator
+              keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled
+              bounces>
+              {scrollBody}
+            </ScrollView>
+          )}
 
           <Pressable onPress={onClose} style={({ pressed }) => [styles.closeButton, pressed && styles.closeButtonPressed]}>
             <Text style={styles.closeButtonText}>Done</Text>
@@ -171,9 +214,12 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 28,
     paddingHorizontal: 20,
     paddingTop: 12,
-    maxHeight: '92%',
     borderTopWidth: 1,
     borderColor: VoiceTheme.border,
+    flexDirection: 'column',
+  },
+  header: {
+    flexShrink: 0,
   },
   handle: {
     width: 40,
@@ -190,11 +236,13 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   scroll: {
-    flexGrow: 0,
-    flexShrink: 1,
+    flex: 1,
+    minHeight: 0,
+    gap: 16,
+    paddingBottom: 40,
   },
   scrollContent: {
-    paddingBottom: 48,
+    paddingBottom: 40,
     gap: 16,
   },
   actionsRow: {
@@ -204,10 +252,12 @@ const styles = StyleSheet.create({
   },
   previewButton: {
     flex: 1,
+    minHeight: MIN_TOUCH_TARGET,
     backgroundColor: VoiceTheme.accent,
     paddingVertical: 12,
     borderRadius: 16,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   previewButtonPressed: {
     opacity: 0.8,
@@ -218,11 +268,13 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   resetButton: {
+    minHeight: MIN_TOUCH_TARGET,
     paddingVertical: 12,
     paddingHorizontal: 18,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: VoiceTheme.border,
+    justifyContent: 'center',
   },
   resetButtonPressed: {
     opacity: 0.6,
@@ -233,6 +285,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   closeButton: {
+    flexShrink: 0,
     alignItems: 'center',
     paddingVertical: 14,
     marginTop: 8,
