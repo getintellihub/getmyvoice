@@ -56,8 +56,8 @@ export function VoiceCloneCard({
     <View style={styles.card}>
       <Text style={styles.headline}>Make MyVoice sound like you</Text>
       <Text style={styles.subtext}>
-        Record 30-60 seconds of yourself speaking naturally. MyVoice will learn your voice and use it every time you
-        speak.
+        Record about 2–3 minutes of yourself speaking naturally. MyVoice will learn your voice and use it every time
+        you speak.
       </Text>
 
       {stage === 'intro' && (
@@ -86,7 +86,7 @@ export function VoiceCloneCard({
       {stage === 'recording' && (
         <View style={styles.stageBlock}>
           <Text style={styles.timer}>{formatDuration(durationSeconds)}</Text>
-          <Text style={styles.recordingHint}>Read the script below, or say anything for 30-60 seconds.</Text>
+          <Text style={styles.recordingHint}>Read the script below — about 2–3 minutes gives the best clone.</Text>
           <ScriptBlock />
           <View style={styles.actionSpacer} />
           <Pressable
