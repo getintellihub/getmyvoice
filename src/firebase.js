@@ -13,16 +13,22 @@ export const firebaseConfig = {
   appId: '1:882330948987:web:730892c57e911d89b819de',
 };
 
-// The region your Cloud Functions are deployed to. "us-central1" is the
-// Firebase default unless you changed it in functions/index.js.
-const FUNCTIONS_REGION = 'us-central1';
+// Deployed HTTPS Cloud Functions (us-central1 / getmyvoice-83d97).
+export const CLOUD_FUNCTION_URLS = {
+  cloneVoice: 'https://us-central1-getmyvoice-83d97.cloudfunctions.net/cloneVoice',
+  speak: 'https://us-central1-getmyvoice-83d97.cloudfunctions.net/speak',
+};
 
 /**
- * Builds the HTTPS URL for a deployed Cloud Function (e.g. "cloneVoice" or
- * "speak"). We call functions directly over HTTPS with fetch — rather than
- * the Firebase JS SDK's callable client — so multipart audio uploads work
- * the same way in Expo Go as they do in a production build.
+ * Returns the HTTPS URL for a deployed Cloud Function.
+ * We call functions directly over HTTPS with fetch — rather than the Firebase
+ * JS SDK's callable client — so multipart audio uploads work the same way in
+ * Expo Go as they do in a production build.
  */
 export function getCloudFunctionUrl(functionName) {
-  return `https://${FUNCTIONS_REGION}-${firebaseConfig.projectId}.cloudfunctions.net/${functionName}`;
+  const url = CLOUD_FUNCTION_URLS[functionName];
+  if (!url) {
+    throw new Error(`Unknown Cloud Function: ${functionName}`);
+  }
+  return url;
 }
