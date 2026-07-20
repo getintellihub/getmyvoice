@@ -1,10 +1,9 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Temporary open access while the app identifies users by device id
-    // (no Firebase Auth yet). Tighten these rules when auth lands.
+    // Users can only read/write their own account document (Firebase Auth UID).
     match /users/{userId} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null && request.auth.uid == userId;
     }
   }
 }

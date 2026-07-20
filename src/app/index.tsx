@@ -14,9 +14,9 @@ import { MIN_TOUCH_TARGET, VoiceFonts, VoiceTheme } from '@/constants/voice-them
 import { useAutoSpeakSchedule } from '@/hooks/use-auto-speak-schedule';
 import { useCustomPhrases } from '@/hooks/use-custom-phrases';
 import { useHistory } from '@/hooks/use-history';
-import { useOnboarding } from '@/hooks/use-onboarding';
 import { useTimeGreeting } from '@/hooks/use-time-greeting';
 import { useVoiceSettings } from '@/hooks/use-voice-settings';
+import { useAuth } from '@/providers/auth-provider';
 import { speakText, stopSpeaking as stopSpeechEngine } from '@/services/speech-engine';
 
 const MAX_CHARACTERS = 500;
@@ -30,7 +30,7 @@ export default function MyVoiceScreen() {
   const [scheduleVisible, setScheduleVisible] = useState(false);
   const [greetingDismissed, setGreetingDismissed] = useState(false);
 
-  const { isLoaded: onboardingLoaded, hasSeenOnboarding, completeOnboarding } = useOnboarding();
+  const { onboardingLoaded, hasCompletedOnboarding, markOnboardingComplete, user } = useAuth();
   const { settings } = useVoiceSettings();
   const { history, addToHistory, clearHistory } = useHistory();
   const { phrases: myPhrases, addPhrase, removePhrase } = useCustomPhrases();
@@ -45,8 +45,9 @@ export default function MyVoiceScreen() {
     const trimmed = text.trim();
     if (!trimmed) return;
 
-    console.log('[MyVoice] speak() → speakText (will read userVoiceId from AsyncStorage)', {
+    console.log('[MyVoice] speak() → speakText', {
       textPreview: trimmed.slice(0, 80),
+      uid: user?.uid,
     });
     speakText(trimmed, settings, {
       onStart: () => setIsSpeaking(true),
@@ -77,8 +78,15 @@ export default function MyVoiceScreen() {
     return <View style={styles.safeArea} />;
   }
 
-  if (!hasSeenOnboarding) {
-    return <OnboardingScreen onContinue={completeOnboarding} />;
+  // First-run onboarding only — returning logins skip via Firestore flag.
+  if (!hasCompletedOnboarding) {
+    return (
+      <OnboardingScreen
+        onContinue={() => {
+          void markOnboardingComplete();
+        }}
+      />
+    );
   }
 
   return (

@@ -1,5 +1,5 @@
 import * as Speech from 'expo-speech';
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,11 +11,14 @@ import { VOICE_CLONE_TEST_PHRASE } from '@/constants/voice-clone';
 import { MIN_TOUCH_TARGET, VoiceFonts, VoiceTheme } from '@/constants/voice-theme';
 import { useVoiceClone } from '@/hooks/use-voice-clone';
 import { VOICE_SETTING_RANGES, useVoiceSettings } from '@/hooks/use-voice-settings';
+import { useAuth } from '@/providers/auth-provider';
 import { speakText } from '@/services/speech-engine';
 
 export default function VoiceSettingsScreen() {
   const router = useRouter();
+  const { user, signOut } = useAuth();
   const [isRerecording, setIsRerecording] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const { settings, updateSetting, setVoiceIdentifier, resetSettings } = useVoiceSettings();
   const clone = useVoiceClone();
 
@@ -39,6 +42,18 @@ export default function VoiceSettingsScreen() {
     await clone.resetClone();
     setIsRerecording(false);
     resetSettings();
+  }
+
+  async function handleSignOut() {
+    setSigningOut(true);
+    try {
+      await signOut();
+      router.replace('/sign-in' as Href);
+    } catch (error) {
+      console.error('[VoiceSettings] signOut failed', error);
+    } finally {
+      setSigningOut(false);
+    }
   }
 
   function handlePreviewVoice() {
@@ -76,6 +91,10 @@ export default function VoiceSettingsScreen() {
         </TouchableOpacity>
 
         <Text style={styles.title}>Voice Settings</Text>
+
+        {user?.email ? (
+          <Text style={styles.accountEmail}>Signed in as {user.email}</Text>
+        ) : null}
 
         {showCloneStatus && (
           <View style={styles.cloneStatusBlock}>
@@ -200,6 +219,18 @@ export default function VoiceSettingsScreen() {
           style={styles.resetButton}>
           <Text style={styles.resetButtonText}>Reset</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Sign out"
+          activeOpacity={0.7}
+          disabled={signingOut}
+          onPress={() => {
+            void handleSignOut();
+          }}
+          style={[styles.signOutButton, signingOut && styles.signOutButtonDisabled]}>
+          <Text style={styles.signOutButtonText}>{signingOut ? 'Signing out…' : 'Sign Out'}</Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -235,6 +266,11 @@ const styles = StyleSheet.create({
     fontSize: 30,
     fontFamily: VoiceFonts.display,
     marginTop: -8,
+  },
+  accountEmail: {
+    color: VoiceTheme.textSecondary,
+    fontSize: 14,
+    marginTop: -12,
   },
   systemVoiceLabel: {
     color: VoiceTheme.textSecondary,
@@ -304,6 +340,23 @@ const styles = StyleSheet.create({
   },
   resetButtonText: {
     color: VoiceTheme.textSecondary,
+    fontWeight: '700',
+    fontSize: 16,
+  },
+  signOutButton: {
+    minHeight: MIN_TOUCH_TARGET,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: VoiceTheme.danger,
+    backgroundColor: VoiceTheme.surface,
+  },
+  signOutButtonDisabled: {
+    opacity: 0.6,
+  },
+  signOutButtonText: {
+    color: VoiceTheme.danger,
     fontWeight: '700',
     fontSize: 16,
   },

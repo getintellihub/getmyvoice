@@ -39,7 +39,8 @@
           "microphonePermission": "MyVoice needs microphone access to record a short voice sample so it can clone your voice.",
           "recordAudioAndroid": true
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true

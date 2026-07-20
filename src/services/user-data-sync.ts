@@ -1,8 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
-import { db } from '@/firebase';
-import { getDeviceUserId } from '@/services/device-id';
+import { auth, db } from '@/firebase';
 import {
   DEFAULT_VOICE_SETTINGS,
   type CustomPhrase,
@@ -18,6 +17,7 @@ export const STORAGE_KEYS = {
   customPhrases: 'myvoice:custom-phrases',
   voiceSettings: 'myvoice:voice-settings',
   history: 'myvoice:history',
+  onboardingComplete: 'myvoice:onboarding-complete',
 } as const;
 
 const EMPTY_DATA: SyncedUserData = {
@@ -25,25 +25,23 @@ const EMPTY_DATA: SyncedUserData = {
   customPhrases: [],
   voiceSettings: DEFAULT_VOICE_SETTINGS,
   history: [],
+  onboardingComplete: false,
   updatedAt: 0,
 };
 
 let hydratePromise: Promise<SyncedUserData> | null = null;
+let hydrateUid: string | null = null;
 
 function usersDoc(userId: string) {
   return doc(db, 'users', userId);
 }
 
-function hasLocalContent(data: SyncedUserData): boolean {
-  return Boolean(
-    data.userVoiceId ||
-      data.customPhrases.length > 0 ||
-      data.history.length > 0 ||
-      data.voiceSettings.voiceIdentifier ||
-      data.voiceSettings.rate !== DEFAULT_VOICE_SETTINGS.rate ||
-      data.voiceSettings.pitch !== DEFAULT_VOICE_SETTINGS.pitch ||
-      data.voiceSettings.volume !== DEFAULT_VOICE_SETTINGS.volume,
-  );
+function requireUid(explicitUid?: string): string {
+  const uid = explicitUid || auth.currentUser?.uid;
+  if (!uid) {
+    throw new Error('Not signed in');
+  }
+  return uid;
 }
 
 function normalizeCloudData(raw: Record<string, unknown> | undefined): SyncedUserData {
@@ -59,16 +57,21 @@ function normalizeCloudData(raw: Record<string, unknown> | undefined): SyncedUse
     customPhrases: Array.isArray(raw.customPhrases) ? (raw.customPhrases as CustomPhrase[]) : [],
     voiceSettings: { ...DEFAULT_VOICE_SETTINGS, ...voiceSettingsRaw },
     history: Array.isArray(raw.history) ? (raw.history as HistoryEntry[]) : [],
+    onboardingComplete:
+      typeof raw.onboardingComplete === 'boolean'
+        ? raw.onboardingComplete
+        : true, // legacy docs without the field skip onboarding
     updatedAt: typeof raw.updatedAt === 'number' ? raw.updatedAt : Date.now(),
   };
 }
 
 async function readLocalData(): Promise<SyncedUserData> {
-  const [userVoiceId, phrasesRaw, settingsRaw, historyRaw] = await Promise.all([
+  const [userVoiceId, phrasesRaw, settingsRaw, historyRaw, onboardingRaw] = await Promise.all([
     AsyncStorage.getItem(STORAGE_KEYS.userVoiceId),
     AsyncStorage.getItem(STORAGE_KEYS.customPhrases),
     AsyncStorage.getItem(STORAGE_KEYS.voiceSettings),
     AsyncStorage.getItem(STORAGE_KEYS.history),
+    AsyncStorage.getItem(STORAGE_KEYS.onboardingComplete),
   ]);
 
   let customPhrases: CustomPhrase[] = [];
@@ -96,6 +99,7 @@ async function readLocalData(): Promise<SyncedUserData> {
     customPhrases,
     voiceSettings,
     history,
+    onboardingComplete: onboardingRaw === 'true',
     updatedAt: Date.now(),
   };
 }
@@ -105,6 +109,7 @@ async function writeLocalData(data: SyncedUserData): Promise<void> {
     AsyncStorage.setItem(STORAGE_KEYS.customPhrases, JSON.stringify(data.customPhrases)),
     AsyncStorage.setItem(STORAGE_KEYS.voiceSettings, JSON.stringify(data.voiceSettings)),
     AsyncStorage.setItem(STORAGE_KEYS.history, JSON.stringify(data.history)),
+    AsyncStorage.setItem(STORAGE_KEYS.onboardingComplete, data.onboardingComplete ? 'true' : 'false'),
   ];
 
   if (data.userVoiceId) {
@@ -127,9 +132,8 @@ async function writeCloudData(userId: string, partial: Partial<SyncedUserData>):
   );
 }
 
-async function hydrateFromCloudOrLocal(): Promise<SyncedUserData> {
-  const userId = await getDeviceUserId();
-  console.log(`${LOG} hydrating for user`, userId);
+async function hydrateFromCloudOrLocal(userId: string): Promise<SyncedUserData> {
+  console.log(`${LOG} hydrating for uid`, userId);
 
   try {
     const snapshot = await getDoc(usersDoc(userId));
@@ -139,6 +143,7 @@ async function hydrateFromCloudOrLocal(): Promise<SyncedUserData> {
         hasVoiceId: Boolean(cloud.userVoiceId),
         phrases: cloud.customPhrases.length,
         history: cloud.history.length,
+        onboardingComplete: cloud.onboardingComplete,
       });
       await writeLocalData(cloud);
       return cloud;
@@ -149,33 +154,59 @@ async function hydrateFromCloudOrLocal(): Promise<SyncedUserData> {
   }
 
   const local = await readLocalData();
-  if (hasLocalContent(local)) {
-    try {
-      await writeCloudData(userId, local);
-      console.log(`${LOG} seeded Firestore from local AsyncStorage`);
-    } catch (error) {
-      console.warn(`${LOG} failed to seed Firestore from local data`, error);
-    }
+  // First-time cloud docs for brand-new accounts keep onboarding incomplete.
+  const seeded: SyncedUserData = {
+    ...EMPTY_DATA,
+    ...local,
+    onboardingComplete: local.onboardingComplete,
+  };
+
+  try {
+    await writeCloudData(userId, seeded);
+    console.log(`${LOG} seeded Firestore user doc`);
+  } catch (error) {
+    console.warn(`${LOG} failed to seed Firestore`, error);
   }
-  return local;
+
+  return seeded;
 }
 
-/** Ensures cloud→local (or local fallback) hydration runs once per app session. */
-export function ensureUserDataHydrated(): Promise<SyncedUserData> {
-  if (!hydratePromise) {
-    hydratePromise = hydrateFromCloudOrLocal().catch((error) => {
+export function resetUserDataHydration() {
+  hydratePromise = null;
+  hydrateUid = null;
+}
+
+export async function clearLocalUserCache(): Promise<void> {
+  await AsyncStorage.multiRemove([
+    STORAGE_KEYS.userVoiceId,
+    STORAGE_KEYS.customPhrases,
+    STORAGE_KEYS.voiceSettings,
+    STORAGE_KEYS.history,
+    STORAGE_KEYS.onboardingComplete,
+  ]);
+}
+
+/** Ensures cloud→local hydration for the signed-in Firebase UID. */
+export function ensureUserDataHydrated(explicitUid?: string): Promise<SyncedUserData> {
+  const uid = requireUid(explicitUid);
+
+  if (!hydratePromise || hydrateUid !== uid) {
+    hydrateUid = uid;
+    hydratePromise = hydrateFromCloudOrLocal(uid).catch((error) => {
       console.warn(`${LOG} hydration failed`, error);
       hydratePromise = null;
+      hydrateUid = null;
       return readLocalData();
     });
   }
+
   return hydratePromise;
 }
 
 async function dualWrite(partial: Partial<SyncedUserData>, localWriter: () => Promise<void>): Promise<void> {
   await localWriter();
   try {
-    const userId = await getDeviceUserId();
+    const userId = requireUid();
     await writeCloudData(userId, partial);
     console.log(`${LOG} dual-write ok`, Object.keys(partial));
   } catch (error) {
@@ -184,6 +215,7 @@ async function dualWrite(partial: Partial<SyncedUserData>, localWriter: () => Pr
 }
 
 export async function syncGetUserVoiceId(): Promise<string | null> {
+  if (!auth.currentUser) return null;
   await ensureUserDataHydrated();
   return AsyncStorage.getItem(STORAGE_KEYS.userVoiceId);
 }
@@ -213,5 +245,11 @@ export async function syncSetVoiceSettings(settings: VoiceSettings): Promise<voi
 export async function syncSetHistory(history: HistoryEntry[]): Promise<void> {
   await dualWrite({ history }, async () => {
     await AsyncStorage.setItem(STORAGE_KEYS.history, JSON.stringify(history));
+  });
+}
+
+export async function setOnboardingComplete(complete: boolean): Promise<void> {
+  await dualWrite({ onboardingComplete: complete }, async () => {
+    await AsyncStorage.setItem(STORAGE_KEYS.onboardingComplete, complete ? 'true' : 'false');
   });
 }

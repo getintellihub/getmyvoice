@@ -28,5 +28,7 @@ export type SyncedUserData = {
   customPhrases: CustomPhrase[];
   voiceSettings: VoiceSettings;
   history: HistoryEntry[];
+  /** True after the user finishes first-run onboarding (signup only). */
+  onboardingComplete: boolean;
   updatedAt: number;
 };
