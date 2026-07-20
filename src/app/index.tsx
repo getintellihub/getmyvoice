@@ -9,10 +9,12 @@ import { HistoryModal } from '@/components/history-modal';
 import { OnboardingScreen } from '@/components/onboarding-screen';
 import { PhraseGrid } from '@/components/phrase-grid';
 import { QuickCommandsFab } from '@/components/quick-commands-fab';
+import { SettingsAttentionDot, VoiceSetupBanner } from '@/components/voice-setup-banner';
 import { CATEGORIES, CategoryId, DEFAULT_PHRASES } from '@/constants/phrases';
 import { MIN_TOUCH_TARGET, VoiceFonts, VoiceTheme } from '@/constants/voice-theme';
 import { useAutoSpeakSchedule } from '@/hooks/use-auto-speak-schedule';
 import { useCustomPhrases } from '@/hooks/use-custom-phrases';
+import { useHasClonedVoice } from '@/hooks/use-has-cloned-voice';
 import { useHistory } from '@/hooks/use-history';
 import { useTimeGreeting } from '@/hooks/use-time-greeting';
 import { useVoiceSettings } from '@/hooks/use-voice-settings';
@@ -29,12 +31,17 @@ export default function MyVoiceScreen() {
   const [historyVisible, setHistoryVisible] = useState(false);
   const [scheduleVisible, setScheduleVisible] = useState(false);
   const [greetingDismissed, setGreetingDismissed] = useState(false);
+  const [voiceSetupBannerDismissed, setVoiceSetupBannerDismissed] = useState(false);
 
   const { onboardingLoaded, hasCompletedOnboarding, markOnboardingComplete, user } = useAuth();
+  const { hasClone } = useHasClonedVoice();
   const { settings } = useVoiceSettings();
   const { history, addToHistory, clearHistory } = useHistory();
   const { phrases: myPhrases, addPhrase, removePhrase } = useCustomPhrases();
   const timeGreeting = useTimeGreeting();
+
+  const showVoiceSetupBanner = !hasClone && !voiceSetupBannerDismissed;
+  const showSettingsAttention = !hasClone;
 
   const activeCategoryMeta = useMemo(
     () => CATEGORIES.find((category) => category.id === activeCategory) ?? CATEGORIES[0],
@@ -117,9 +124,17 @@ export default function MyVoiceScreen() {
               onPress={() => router.push('/voice-settings' as Href)}
               style={({ pressed }) => [styles.iconButton, pressed && styles.iconButtonPressed]}>
               <Text style={styles.iconButtonText}>⚙️</Text>
+              {showSettingsAttention ? <SettingsAttentionDot /> : null}
             </Pressable>
           </View>
         </View>
+
+        {showVoiceSetupBanner && (
+          <VoiceSetupBanner
+            onPress={() => router.push('/voice-settings' as Href)}
+            onDismiss={() => setVoiceSetupBannerDismissed(true)}
+          />
+        )}
 
         {!greetingDismissed && (
           <GreetingBanner greeting={timeGreeting} onSpeak={speak} onDismiss={() => setGreetingDismissed(true)} />
