@@ -8,6 +8,8 @@ import { getCloudFunctionUrl } from '@/firebase';
 
 const STORAGE_KEY = 'userVoiceId';
 const FRIENDLY_ERROR = 'Something went wrong creating your voice. Please try again in a quiet environment.';
+const MIC_DENIED_ERROR =
+  'Microphone permission was denied. On iPhone, open Settings → Expo Go → Microphone, turn it on, then try again.';
 
 export type VoiceCloneStage = 'intro' | 'recording' | 'recorded' | 'uploading' | 'success' | 'error';
 
@@ -31,6 +33,31 @@ function pickWebRecorderMime(): RecordingMime {
     }
   }
   return { mimeType: 'audio/webm', extension: 'webm' };
+}
+
+function formatCaughtError(error: unknown, fallback = FRIENDLY_ERROR): string {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message.trim();
+  }
+  if (typeof error === 'string' && error.trim()) {
+    return error.trim();
+  }
+  return fallback;
+}
+
+function formatServerError(data: Record<string, unknown>, status: number): string {
+  const detail = data?.detail;
+  const error = data?.error;
+  if (typeof detail === 'string' && detail.trim()) return detail.trim();
+  if (typeof error === 'string' && error.trim()) return error.trim();
+  if (detail && typeof detail === 'object') {
+    try {
+      return JSON.stringify(detail);
+    } catch {
+      // fall through
+    }
+  }
+  return `Clone request failed (HTTP ${status}).`;
 }
 
 export function useVoiceClone() {
@@ -121,8 +148,9 @@ export function useVoiceClone() {
     mediaChunksRef.current = [];
 
     if (blob.size === 0) {
+      const message = 'Recording was empty. Please try again and speak for at least 30 seconds.';
       console.error('[useVoiceClone] Web recording produced empty blob');
-      setErrorMessage(FRIENDLY_ERROR);
+      setErrorMessage(message);
       setStage('error');
       return;
     }
@@ -146,14 +174,19 @@ export function useVoiceClone() {
 
     try {
       await recording.stopAndUnloadAsync();
-      recordingUriRef.current = recording.getURI();
+      const uri = recording.getURI();
+      if (!uri) {
+        throw new Error('Recording finished but no audio file was saved. Please try again.');
+      }
+      recordingUriRef.current = uri;
       recordingBlobRef.current = null;
       recordingMimeRef.current = { mimeType: 'audio/m4a', extension: 'm4a' };
       recordingRef.current = null;
+      console.log('[useVoiceClone] Native recording ready', { uri });
       setStage('recorded');
     } catch (error) {
       console.error('[useVoiceClone] Native stopRecording failed', error);
-      setErrorMessage(FRIENDLY_ERROR);
+      setErrorMessage(formatCaughtError(error));
       setStage('error');
     }
   }, [clearTimer]);
@@ -202,14 +235,26 @@ export function useVoiceClone() {
   }, [startTimer]);
 
   const startNativeRecording = useCallback(async () => {
+    console.log('[useVoiceClone] Requesting microphone permission…');
     const permission = await Audio.requestPermissionsAsync();
+    console.log('[useVoiceClone] Microphone permission result', permission);
+
     if (!permission.granted) {
-      setErrorMessage('Microphone access is needed to record your voice. Please allow it in your device settings.');
+      setErrorMessage(MIC_DENIED_ERROR);
       setStage('error');
       return;
     }
 
-    await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+    // Required on iOS before Recording.createAsync — enables the mic input
+    // session and allows recording while the hardware silent switch is on.
+    await Audio.setAudioModeAsync({
+      allowsRecordingIOS: true,
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: false,
+      shouldDuckAndroid: true,
+      playThroughEarpieceAndroid: false,
+    });
+
     const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
     recordingRef.current = recording;
     recordingUriRef.current = null;
@@ -217,6 +262,7 @@ export function useVoiceClone() {
     recordingMimeRef.current = { mimeType: 'audio/m4a', extension: 'm4a' };
     setStage('recording');
     startTimer();
+    console.log('[useVoiceClone] Native HIGH_QUALITY recording started');
   }, [startTimer]);
 
   const startRecording = useCallback(async () => {
@@ -229,11 +275,13 @@ export function useVoiceClone() {
       await startNativeRecording();
     } catch (error) {
       console.error('[useVoiceClone] startRecording failed', error);
-      setErrorMessage(
-        error instanceof Error && error.message.includes('microphone')
-          ? error.message
-          : FRIENDLY_ERROR,
-      );
+      const message = formatCaughtError(error);
+      const lower = message.toLowerCase();
+      if (lower.includes('permission') || lower.includes('not authorized') || lower.includes('denied')) {
+        setErrorMessage(MIC_DENIED_ERROR);
+      } else {
+        setErrorMessage(message);
+      }
       setStage('error');
     }
   }, [startNativeRecording, startWebRecording]);
@@ -247,7 +295,6 @@ export function useVoiceClone() {
 
       if (Platform.OS === 'web') {
         webAudioRef.current?.pause();
-        // Use the browser Audio element — not expo-av's Audio module.
         const BrowserAudio = (globalThis as typeof globalThis & { Audio?: typeof window.Audio }).Audio;
         if (!BrowserAudio) {
           throw new Error('Browser audio playback is unavailable');
@@ -263,6 +310,11 @@ export function useVoiceClone() {
         return;
       }
 
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+      });
+
       if (previewSoundRef.current) {
         await previewSoundRef.current.unloadAsync().catch(() => undefined);
         previewSoundRef.current = null;
@@ -277,6 +329,7 @@ export function useVoiceClone() {
     } catch (error) {
       console.error('[useVoiceClone] playPreview failed', error);
       setIsPlayingPreview(false);
+      setErrorMessage(formatCaughtError(error, 'Could not play the recording preview.'));
     }
   }, []);
 
@@ -302,7 +355,6 @@ export function useVoiceClone() {
         formData.append('name', name.trim() || 'My Voice');
 
         if (Platform.OS === 'web') {
-          // Browser FormData requires a real Blob/File — RN's { uri, name, type } shape fails on web.
           let uploadBlob = blob;
           if (!uploadBlob && uri) {
             const fetched = await fetch(uri);
@@ -324,33 +376,47 @@ export function useVoiceClone() {
             name: filename,
             type: mime.mimeType,
           } as unknown as Blob);
-          console.log('[useVoiceClone] Uploading native recording', { uri, filename, mimeType: mime.mimeType });
+          console.log('[useVoiceClone] Uploading native recording', {
+            uri,
+            filename,
+            mimeType: mime.mimeType,
+            durationSeconds,
+          });
         }
 
         const response = await fetch(getCloudFunctionUrl('cloneVoice'), {
           method: 'POST',
           body: formData,
         });
-        const data = await response.json().catch(() => ({}));
+
+        const rawText = await response.text();
+        let data: Record<string, unknown> = {};
+        try {
+          data = rawText ? JSON.parse(rawText) : {};
+        } catch {
+          data = { raw: rawText };
+        }
 
         console.log('[useVoiceClone] cloneVoice response', {
           status: response.status,
           ok: response.ok,
           data,
+          rawText: rawText.slice(0, 2000),
         });
 
         if (!response.ok || !data.voice_id) {
-          const detail = data?.detail || data?.error || `HTTP ${response.status}`;
+          const detail = formatServerError(data, response.status);
           console.error('[useVoiceClone] cloneVoice failed', detail, data);
-          throw new Error(typeof detail === 'string' ? detail : FRIENDLY_ERROR);
+          throw new Error(detail);
         }
 
-        await AsyncStorage.setItem(STORAGE_KEY, data.voice_id);
-        setVoiceId(data.voice_id);
+        await AsyncStorage.setItem(STORAGE_KEY, String(data.voice_id));
+        setVoiceId(String(data.voice_id));
         setStage('success');
       } catch (error) {
         console.error('[useVoiceClone] createVoiceClone failed', error);
-        setErrorMessage(FRIENDLY_ERROR);
+        // Show the actual Firebase / ElevenLabs error on screen for debugging.
+        setErrorMessage(formatCaughtError(error));
         setStage('error');
       }
     },

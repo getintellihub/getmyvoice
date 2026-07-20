@@ -8,7 +8,10 @@
     "scheme": "getmyvoice",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/images/icon.png"
+      "icon": "./assets/images/icon.png",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "MyVoice needs microphone access to record a short voice sample so it can clone your voice."
+      }
     },
     "android": {
       "adaptiveIcon": {

@@ -31,6 +31,8 @@ function ScriptBlock() {
     <View style={styles.scriptBox}>
       <Text style={styles.scriptTitle}>Reading script</Text>
       <Text style={styles.scriptText}>{VOICE_CLONE_SCRIPT}</Text>
+      {/* Extra space so the Record / Stop button never sits on top of the script. */}
+      <View style={styles.scriptBottomSpacer} />
     </View>
   );
 }
@@ -71,9 +73,11 @@ export function VoiceCloneCard({
 
           <ScriptBlock />
 
+          <View style={styles.actionSpacer} />
+
           <Pressable
             onPress={startRecording}
-            style={({ pressed }) => [styles.recordButton, styles.bottomAction, pressed && styles.recordButtonPressed]}>
+            style={({ pressed }) => [styles.recordButton, pressed && styles.recordButtonPressed]}>
             <Text style={styles.recordButtonText}>🎙️ Record</Text>
           </Pressable>
         </View>
@@ -84,9 +88,10 @@ export function VoiceCloneCard({
           <Text style={styles.timer}>{formatDuration(durationSeconds)}</Text>
           <Text style={styles.recordingHint}>Read the script below, or say anything for 30-60 seconds.</Text>
           <ScriptBlock />
+          <View style={styles.actionSpacer} />
           <Pressable
             onPress={stopRecording}
-            style={({ pressed }) => [styles.stopButton, styles.bottomAction, pressed && styles.stopButtonPressed]}>
+            style={({ pressed }) => [styles.stopButton, pressed && styles.stopButtonPressed]}>
             <Text style={styles.recordButtonText}>⏹ Stop Recording</Text>
           </Pressable>
         </View>
@@ -129,7 +134,6 @@ export function VoiceCloneCard({
             disabled={durationSeconds < MIN_RECORDING_SECONDS}
             style={({ pressed }) => [
               styles.recordButton,
-              styles.bottomAction,
               durationSeconds < MIN_RECORDING_SECONDS && styles.recordButtonDisabled,
               pressed && durationSeconds >= MIN_RECORDING_SECONDS && styles.recordButtonPressed,
             ]}>
@@ -219,7 +223,9 @@ const styles = StyleSheet.create({
   scriptBox: {
     backgroundColor: VoiceTheme.surface,
     borderRadius: 14,
-    padding: 14,
+    paddingTop: 14,
+    paddingHorizontal: 14,
+    paddingBottom: 20,
     gap: 10,
     borderWidth: 1,
     borderColor: VoiceTheme.border,
@@ -234,8 +240,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 22,
   },
-  bottomAction: {
-    marginTop: 4,
+  scriptBottomSpacer: {
+    height: 12,
+  },
+  actionSpacer: {
+    height: 12,
   },
   recordButton: {
     minHeight: MIN_TOUCH_TARGET,
@@ -243,6 +252,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 4,
   },
   recordButtonPressed: {
     opacity: 0.85,
@@ -278,6 +288,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 4,
   },
   stopButtonPressed: {
     opacity: 0.85,
@@ -362,8 +373,9 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: VoiceTheme.danger,
-    fontSize: 15,
-    textAlign: 'center',
+    fontSize: 14,
+    textAlign: 'left',
     lineHeight: 21,
+    alignSelf: 'stretch',
   },
 });
