@@ -4,7 +4,8 @@ const express = require('express');
 const multer = require('multer');
 
 const DIST_DIR = path.join(__dirname, 'dist');
-const PORT = process.env.PORT || 3000;
+const PORT = Number(process.env.PORT) || 3000;
+const HOST = '0.0.0.0';
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 const ELEVENLABS_BASE_URL = 'https://api.elevenlabs.io/v1';
 
@@ -207,19 +208,39 @@ app.get('/api/health', (_req, res) => {
 // Serve the Expo web export when present (Railway production).
 if (fs.existsSync(DIST_DIR)) {
   app.use(express.static(DIST_DIR));
-  app.get(/^(?!\/api\/).*/, (req, res) => {
-    res.sendFile(path.join(DIST_DIR, 'index.html'));
-  });
-} else {
-  app.get('/', (_req, res) => {
-    res.status(200).json({
-      ok: true,
-      message: 'MyVoice API is running. Build the web app (npm run build:web) to also serve the frontend.',
-    });
+  app.get(/^(?!\/api).*/, (req, res, next) => {
+    const indexPath = path.join(DIST_DIR, 'index.html');
+    if (!fs.existsSync(indexPath)) {
+      next();
+      return;
+    }
+    res.sendFile(indexPath);
   });
 }
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`MyVoice server listening on 0.0.0.0:${PORT}`);
+app.get('/', (_req, res) => {
+  res.status(200).json({
+    ok: true,
+    message: 'MyVoice API is running.',
+    hasElevenLabsKey: Boolean(ELEVENLABS_API_KEY),
+  });
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('[server] uncaughtException', error);
+});
+
+process.on('unhandledRejection', (error) => {
+  console.error('[server] unhandledRejection', error);
+});
+
+const server = app.listen(PORT, HOST, () => {
+  console.log(`MyVoice server listening on http://${HOST}:${PORT}`);
   console.log(`ElevenLabs key configured: ${Boolean(ELEVENLABS_API_KEY)}`);
+  console.log(`Dist directory present: ${fs.existsSync(DIST_DIR)}`);
+});
+
+server.on('error', (error) => {
+  console.error('[server] listen error', error);
+  process.exit(1);
 });

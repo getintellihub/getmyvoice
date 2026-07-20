@@ -2,5 +2,5 @@
 builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
 
-[deploy]
-startCommand = "node server.js"
+# Do not set startCommand here — use the Dockerfile CMD ["node", "server.js"]
+# so Railway does not override the container entrypoint.

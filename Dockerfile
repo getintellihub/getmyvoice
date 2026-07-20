@@ -15,6 +15,6 @@ ENV NODE_OPTIONS=--max-old-space-size=4096
 
 RUN npx expo export -p web
 
-EXPOSE 3000
+EXPOSE 8080
 
 CMD ["node", "server.js"]
