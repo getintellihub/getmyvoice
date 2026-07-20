@@ -1,438 +1,499 @@
-import { type Href, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter, type Href } from 'expo-router';
+import { useEffect, useRef } from 'react';
+import {
+  Animated,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AutoSpeakScheduleModal } from '@/components/auto-speak-schedule-modal';
-import { GreetingBanner } from '@/components/greeting-banner';
-import { HistoryModal } from '@/components/history-modal';
-import { OnboardingScreen } from '@/components/onboarding-screen';
-import { PhraseGrid } from '@/components/phrase-grid';
-import { QuickCommandsFab } from '@/components/quick-commands-fab';
-import { SettingsAttentionDot, VoiceSetupBanner } from '@/components/voice-setup-banner';
-import { CATEGORIES, CategoryId, DEFAULT_PHRASES } from '@/constants/phrases';
-import { MIN_TOUCH_TARGET, VoiceFonts, VoiceTheme } from '@/constants/voice-theme';
-import { useAutoSpeakSchedule } from '@/hooks/use-auto-speak-schedule';
-import { useCustomPhrases } from '@/hooks/use-custom-phrases';
-import { useHasClonedVoice } from '@/hooks/use-has-cloned-voice';
-import { useHistory } from '@/hooks/use-history';
-import { useTimeGreeting } from '@/hooks/use-time-greeting';
-import { useVoiceSettings } from '@/hooks/use-voice-settings';
-import { useAuth } from '@/providers/auth-provider';
-import { speakText, stopSpeaking as stopSpeechEngine } from '@/services/speech-engine';
+import { MIN_TOUCH_TARGET, VoiceFonts } from '@/constants/voice-theme';
 
-const MAX_CHARACTERS = 500;
+const LANDING = {
+  gradientStart: '#7c5cbf',
+  gradientEnd: '#5b3fa0',
+  darkSection: '#3a2a68',
+  white: '#ffffff',
+  whiteSoft: 'rgba(255,255,255,0.92)',
+  whiteMuted: 'rgba(255,255,255,0.78)',
+  cardBg: 'rgba(255,255,255,0.14)',
+  cardBorder: 'rgba(255,255,255,0.28)',
+} as const;
 
-export default function MyVoiceScreen() {
+const AUDIENCE = [
+  {
+    emoji: '🗣️',
+    title: 'Dysphonia',
+    body: 'Voice weakens or disappears between treatments',
+  },
+  {
+    emoji: '🧠',
+    title: 'Stroke & Aphasia',
+    body: 'Difficulty speaking after a stroke or brain injury',
+  },
+  {
+    emoji: '🔬',
+    title: 'ALS & Parkinson\'s',
+    body: 'Progressive voice loss conditions',
+  },
+  {
+    emoji: '🏥',
+    title: 'Post-Surgery',
+    body: 'Voice loss after throat or larynx surgery',
+  },
+  {
+    emoji: '👐',
+    title: 'And many more',
+    body: 'Anyone who needs a voice when theirs won\'t cooperate',
+  },
+] as const;
+
+const STEPS = [
+  {
+    emoji: '⌨️',
+    title: 'Type or tap',
+    body: 'Type what you want to say or tap a quick phrase',
+  },
+  {
+    emoji: '🔊',
+    title: 'MyVoice speaks',
+    body: 'The app speaks it out loud for everyone to hear',
+  },
+  {
+    emoji: '🎤',
+    title: 'Sound like you',
+    body: 'Clone your voice so it sounds exactly like you',
+  },
+] as const;
+
+const SCENARIOS = [
+  {
+    emoji: '🚗',
+    title: 'Drive-through',
+    body: 'Order food without struggling to be heard',
+  },
+  {
+    emoji: '🏥',
+    title: "Doctor's office",
+    body: 'Communicate clearly with your care team',
+  },
+  {
+    emoji: '📞',
+    title: 'Phone calls',
+    body: 'Stay connected even when your voice is gone',
+  },
+  {
+    emoji: '🏠',
+    title: 'At home',
+    body: 'Talk to family naturally every day',
+  },
+] as const;
+
+export default function LandingScreen() {
   const router = useRouter();
-  const [activeCategory, setActiveCategory] = useState<CategoryId>('greetings');
-  const [inputText, setInputText] = useState('');
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const [historyVisible, setHistoryVisible] = useState(false);
-  const [scheduleVisible, setScheduleVisible] = useState(false);
-  const [greetingDismissed, setGreetingDismissed] = useState(false);
-  const [voiceSetupBannerDismissed, setVoiceSetupBannerDismissed] = useState(false);
+  const { width } = useWindowDimensions();
+  const isWide = width >= 720;
+  const cardWidth = isWide ? Math.min(220, (width - 80) / 3 - 12) : width - 48;
 
-  const { onboardingLoaded, hasCompletedOnboarding, markOnboardingComplete, user } = useAuth();
-  const { hasClone } = useHasClonedVoice();
-  const { settings } = useVoiceSettings();
-  const { history, addToHistory, clearHistory } = useHistory();
-  const { phrases: myPhrases, addPhrase, removePhrase } = useCustomPhrases();
-  const timeGreeting = useTimeGreeting();
+  const heroFade = useRef(new Animated.Value(0)).current;
+  const heroRise = useRef(new Animated.Value(18)).current;
+  const micPulse = useRef(new Animated.Value(1)).current;
 
-  const showVoiceSetupBanner = !hasClone && !voiceSetupBannerDismissed;
-  const showSettingsAttention = !hasClone;
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(heroFade, {
+        toValue: 1,
+        duration: 700,
+        useNativeDriver: true,
+      }),
+      Animated.timing(heroRise, {
+        toValue: 0,
+        duration: 700,
+        useNativeDriver: true,
+      }),
+    ]).start();
 
-  const activeCategoryMeta = useMemo(
-    () => CATEGORIES.find((category) => category.id === activeCategory) ?? CATEGORIES[0],
-    [activeCategory],
-  );
-
-  function speak(text: string) {
-    const trimmed = text.trim();
-    if (!trimmed) return;
-
-    console.log('[MyVoice] speak() → speakText', {
-      textPreview: trimmed.slice(0, 80),
-      uid: user?.uid,
-    });
-    speakText(trimmed, settings, {
-      onStart: () => setIsSpeaking(true),
-      onDone: () => setIsSpeaking(false),
-      onError: () => setIsSpeaking(false),
-    });
-    addToHistory(trimmed);
-  }
-
-  function stopSpeaking() {
-    stopSpeechEngine();
-    setIsSpeaking(false);
-  }
-
-  function clearInput() {
-    setInputText('');
-  }
-
-  const { schedule, toggleEntry } = useAutoSpeakSchedule(speak);
-
-  function speakTypedText() {
-    if (!inputText.trim()) return;
-    speak(inputText);
-    setInputText('');
-  }
-
-  if (!onboardingLoaded) {
-    return <View style={styles.safeArea} />;
-  }
-
-  // First-run onboarding only — returning logins skip via Firestore flag.
-  if (!hasCompletedOnboarding) {
-    return (
-      <OnboardingScreen
-        onContinue={() => {
-          void markOnboardingComplete();
-        }}
-      />
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(micPulse, {
+          toValue: 1.08,
+          duration: 1100,
+          useNativeDriver: true,
+        }),
+        Animated.timing(micPulse, {
+          toValue: 1,
+          duration: 1100,
+          useNativeDriver: true,
+        }),
+      ]),
     );
+    pulse.start();
+    return () => pulse.stop();
+  }, [heroFade, heroRise, micPulse]);
+
+  function goSignUp() {
+    router.push('/sign-up' as Href);
+  }
+
+  function goSignIn() {
+    router.push('/sign-in' as Href);
   }
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.appTitle}>MyVoice</Text>
-            <Text style={styles.appSubtitle}>Type or tap to speak</Text>
-          </View>
-          <View style={styles.headerActions}>
-            <Pressable
-              accessibilityLabel="Recently spoken history"
-              onPress={() => setHistoryVisible(true)}
-              style={({ pressed }) => [styles.iconButton, pressed && styles.iconButtonPressed]}>
-              <Text style={styles.iconButtonText}>🕘</Text>
-            </Pressable>
-            <Pressable
-              accessibilityLabel="Auto-speak schedule"
-              onPress={() => setScheduleVisible(true)}
-              style={({ pressed }) => [styles.iconButton, pressed && styles.iconButtonPressed]}>
-              <Text style={styles.iconButtonText}>⏰</Text>
-            </Pressable>
-            <Pressable
-              accessibilityLabel="Voice settings"
-              onPress={() => router.push('/voice-settings' as Href)}
-              style={({ pressed }) => [styles.iconButton, pressed && styles.iconButtonPressed]}>
-              <Text style={styles.iconButtonText}>⚙️</Text>
-              {showSettingsAttention ? <SettingsAttentionDot /> : null}
-            </Pressable>
-          </View>
-        </View>
-
-        {showVoiceSetupBanner && (
-          <VoiceSetupBanner
-            onPress={() => router.push('/voice-settings' as Href)}
-            onDismiss={() => setVoiceSetupBannerDismissed(true)}
-          />
-        )}
-
-        {!greetingDismissed && (
-          <GreetingBanner greeting={timeGreeting} onSpeak={speak} onDismiss={() => setGreetingDismissed(true)} />
-        )}
-
-        <View style={styles.typeCard}>
-          <TextInput
-            value={inputText}
-            onChangeText={(text) => setInputText(text.slice(0, MAX_CHARACTERS))}
-            placeholder="Type what you want to say…"
-            placeholderTextColor={VoiceTheme.textMuted}
-            style={styles.textInput}
-            multiline
-            maxLength={MAX_CHARACTERS}
-            submitBehavior="submit"
-            onSubmitEditing={speakTypedText}
-          />
-          <View style={styles.typeMetaRow}>
-            <Text style={styles.hintText}>⏎ Press Enter to speak</Text>
-            <Text style={styles.charCounter}>
-              {inputText.length}/{MAX_CHARACTERS}
-            </Text>
-          </View>
-          <View style={styles.actionsRow}>
-            <Pressable
-              disabled={!inputText.trim()}
-              onPress={speakTypedText}
-              style={({ pressed }) => [
-                styles.speakButton,
-                !inputText.trim() && styles.speakButtonDisabled,
-                pressed && !!inputText.trim() && styles.speakButtonPressed,
-              ]}>
-              <Text style={styles.speakButtonText}>{isSpeaking ? '🔊 Speaking…' : '🔊 Speak'}</Text>
-            </Pressable>
-            <Pressable
-              disabled={!isSpeaking}
-              onPress={stopSpeaking}
-              style={({ pressed }) => [
-                styles.stopButton,
-                !isSpeaking && styles.stopButtonDisabled,
-                pressed && isSpeaking && styles.stopButtonPressed,
-              ]}>
-              <Text style={[styles.stopButtonText, !isSpeaking && styles.stopButtonTextDisabled]}>⏹ Stop</Text>
-            </Pressable>
-            <Pressable
-              disabled={!inputText}
-              onPress={clearInput}
-              style={({ pressed }) => [
-                styles.clearButton,
-                !inputText && styles.clearButtonDisabled,
-                pressed && !!inputText && styles.clearButtonPressed,
-              ]}>
-              <Text style={[styles.clearButtonText, !inputText && styles.clearButtonTextDisabled]}>✕ Clear</Text>
-            </Pressable>
-          </View>
+    <LinearGradient colors={[LANDING.gradientStart, LANDING.gradientEnd]} style={styles.root}>
+      <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+        <View style={styles.nav}>
+          <Text style={styles.navBrand}>MyVoice</Text>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Sign In"
+            activeOpacity={0.7}
+            onPress={goSignIn}
+            style={styles.navLink}>
+            <Text style={styles.navLinkText}>Sign In</Text>
+          </TouchableOpacity>
         </View>
 
         <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.categoryScroll}
-          contentContainerStyle={styles.categoryScrollContent}>
-          {CATEGORIES.map((category) => {
-            const isActive = category.id === activeCategory;
-            return (
-              <Pressable
-                key={category.id}
-                onPress={() => setActiveCategory(category.id)}
-                style={({ pressed }) => [
-                  styles.categoryPill,
-                  isActive && { backgroundColor: category.color, borderColor: category.color },
-                  pressed && styles.categoryPillPressed,
-                ]}>
-                <Text style={styles.categoryEmoji}>{category.emoji}</Text>
-                <Text style={[styles.categoryLabel, isActive && styles.categoryLabelActive]}>
-                  {category.label}
-                </Text>
-              </Pressable>
-            );
-          })}
+          contentContainerStyle={styles.scroll}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled">
+          {/* SECTION 1 — Hero */}
+          <Animated.View
+            style={[
+              styles.hero,
+              {
+                opacity: heroFade,
+                transform: [{ translateY: heroRise }],
+              },
+            ]}>
+            <Animated.Text style={[styles.heroMic, { transform: [{ scale: micPulse }] }]}>
+              🎤
+            </Animated.Text>
+            <Text style={styles.heroHeadline}>Your voice, even when you can't speak.</Text>
+            <Text style={styles.heroSub}>
+              MyVoice speaks for you — instantly, naturally, and in your own voice.
+            </Text>
+
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Get Started Free"
+              activeOpacity={0.85}
+              onPress={goSignUp}
+              style={styles.primaryButton}>
+              <Text style={styles.primaryButtonText}>Get Started Free</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Sign In"
+              activeOpacity={0.85}
+              onPress={goSignIn}
+              style={styles.secondaryButton}>
+              <Text style={styles.secondaryButtonText}>Sign In</Text>
+            </TouchableOpacity>
+          </Animated.View>
+
+          {/* SECTION 2 — Who it's for */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>MyVoice is for anyone who loses their voice.</Text>
+            <View style={[styles.cardGrid, isWide && styles.cardGridWide]}>
+              {AUDIENCE.map((item) => (
+                <View key={item.title} style={[styles.infoCard, { width: cardWidth }]}>
+                  <Text style={styles.cardEmoji}>{item.emoji}</Text>
+                  <Text style={styles.cardTitle}>{item.title}</Text>
+                  <Text style={styles.cardBody}>{item.body}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+
+          {/* SECTION 3 — How it works */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>How it works</Text>
+            <View style={styles.stepsColumn}>
+              {STEPS.map((step, index) => (
+                <View key={step.title} style={styles.stepRow}>
+                  <View style={styles.stepBadge}>
+                    <Text style={styles.stepNumber}>{index + 1}</Text>
+                  </View>
+                  <View style={styles.stepCopy}>
+                    <Text style={styles.stepTitle}>
+                      {step.emoji} {step.title}
+                    </Text>
+                    <Text style={styles.stepBody}>{step.body}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+
+          {/* SECTION 4 — Real situations */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Built for real moments</Text>
+            <View style={[styles.cardGrid, isWide && styles.cardGridWide]}>
+              {SCENARIOS.map((item) => (
+                <View key={item.title} style={[styles.infoCard, { width: isWide ? (width - 80) / 2 - 10 : width - 48 }]}>
+                  <Text style={styles.cardEmoji}>{item.emoji}</Text>
+                  <Text style={styles.cardTitle}>{item.title}</Text>
+                  <Text style={styles.cardBody}>{item.body}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+
+          {/* SECTION 5 — Not TTS */}
+          <View style={styles.darkSection}>
+            <Text style={styles.darkHeadline}>This is not text-to-speech.</Text>
+            <Text style={styles.darkBody}>
+              Text-to-speech reads documents. MyVoice speaks for you — in real conversations, in real
+              moments, in your real voice. Built by someone whose sister has Dysphonia.
+            </Text>
+          </View>
+
+          {/* SECTION 6 — CTA */}
+          <View style={styles.ctaSection}>
+            <Text style={styles.ctaHeadline}>Ready to find your voice?</Text>
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Get Started Free"
+              activeOpacity={0.85}
+              onPress={goSignUp}
+              style={styles.primaryButton}>
+              <Text style={styles.primaryButtonText}>Get Started Free</Text>
+            </TouchableOpacity>
+            <Text style={styles.ctaFinePrint}>
+              No credit card required · Works on any device · Your voice, your privacy
+            </Text>
+          </View>
         </ScrollView>
-
-        <ScrollView style={styles.phraseScroll} contentContainerStyle={styles.phraseScrollContent}>
-          <PhraseGrid
-            categoryColor={activeCategoryMeta.color}
-            phrases={activeCategory === 'myPhrases' ? [] : DEFAULT_PHRASES[activeCategory]}
-            onSpeak={speak}
-            isMyPhrases={activeCategory === 'myPhrases'}
-            myPhrases={myPhrases}
-            onAddPhrase={addPhrase}
-            onRemovePhrase={removePhrase}
-          />
-        </ScrollView>
-      </KeyboardAvoidingView>
-
-      <QuickCommandsFab onSpeak={speak} />
-
-      <HistoryModal
-        visible={historyVisible}
-        history={history}
-        onClose={() => setHistoryVisible(false)}
-        onSpeakAgain={speak}
-        onClear={clearHistory}
-      />
-
-      <AutoSpeakScheduleModal
-        visible={scheduleVisible}
-        schedule={schedule}
-        onClose={() => setScheduleVisible(false)}
-        onToggle={toggleEntry}
-      />
-    </SafeAreaView>
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: VoiceTheme.background,
-  },
-  flex: {
+  root: {
     flex: 1,
   },
-  header: {
+  safe: {
+    flex: 1,
+  },
+  nav: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 8,
+    paddingVertical: 10,
+    minHeight: MIN_TOUCH_TARGET,
   },
-  appTitle: {
-    color: VoiceTheme.text,
-    fontSize: 30,
+  navBrand: {
+    color: LANDING.white,
     fontFamily: VoiceFonts.display,
+    fontSize: 28,
   },
-  appSubtitle: {
-    color: VoiceTheme.textSecondary,
-    fontSize: 13,
+  navLink: {
+    minHeight: MIN_TOUCH_TARGET,
+    justifyContent: 'center',
+    paddingHorizontal: 8,
   },
-  headerActions: {
-    flexDirection: 'row',
-    gap: 8,
+  navLinkText: {
+    color: LANDING.white,
+    fontWeight: '700',
+    fontSize: 16,
   },
-  iconButton: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: VoiceTheme.surface,
+  scroll: {
+    paddingBottom: 56,
+  },
+  hero: {
+    paddingHorizontal: 24,
+    paddingTop: 28,
+    paddingBottom: 40,
+    alignItems: 'center',
+  },
+  heroMic: {
+    fontSize: 64,
+    marginBottom: 18,
+  },
+  heroHeadline: {
+    color: LANDING.white,
+    fontFamily: VoiceFonts.display,
+    fontSize: 34,
+    lineHeight: 42,
+    textAlign: 'center',
+    marginBottom: 14,
+  },
+  heroSub: {
+    color: LANDING.whiteSoft,
+    fontSize: 18,
+    lineHeight: 26,
+    textAlign: 'center',
+    marginBottom: 28,
+    maxWidth: 520,
+  },
+  primaryButton: {
+    alignSelf: 'stretch',
+    maxWidth: 420,
+    width: '100%',
+    minHeight: MIN_TOUCH_TARGET + 4,
+    backgroundColor: LANDING.white,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: VoiceTheme.border,
+    marginBottom: 12,
   },
-  iconButtonPressed: {
-    opacity: 0.6,
-  },
-  iconButtonText: {
+  primaryButtonText: {
+    color: LANDING.gradientEnd,
+    fontWeight: '800',
     fontSize: 18,
   },
-  typeCard: {
-    marginHorizontal: 20,
-    marginTop: 12,
-    backgroundColor: VoiceTheme.surface,
-    borderRadius: 20,
+  secondaryButton: {
+    alignSelf: 'stretch',
+    maxWidth: 420,
+    width: '100%',
+    minHeight: MIN_TOUCH_TARGET + 4,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: LANDING.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryButtonText: {
+    color: LANDING.white,
+    fontWeight: '700',
+    fontSize: 17,
+  },
+  section: {
+    paddingHorizontal: 24,
+    paddingVertical: 36,
+  },
+  sectionTitle: {
+    color: LANDING.white,
+    fontFamily: VoiceFonts.display,
+    fontSize: 28,
+    lineHeight: 34,
+    textAlign: 'center',
+    marginBottom: 22,
+  },
+  cardGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  cardGridWide: {
+    justifyContent: 'center',
+  },
+  infoCard: {
+    backgroundColor: LANDING.cardBg,
+    borderWidth: 1,
+    borderColor: LANDING.cardBorder,
+    borderRadius: 18,
+    padding: 18,
+    gap: 8,
+  },
+  cardEmoji: {
+    fontSize: 28,
+  },
+  cardTitle: {
+    color: LANDING.white,
+    fontWeight: '800',
+    fontSize: 18,
+  },
+  cardBody: {
+    color: LANDING.whiteMuted,
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  stepsColumn: {
+    gap: 16,
+    maxWidth: 560,
+    alignSelf: 'center',
+    width: '100%',
+  },
+  stepRow: {
+    flexDirection: 'row',
+    gap: 14,
+    alignItems: 'flex-start',
+    backgroundColor: LANDING.cardBg,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: LANDING.cardBorder,
     padding: 16,
-    gap: 10,
-    borderWidth: 1,
-    borderColor: VoiceTheme.border,
   },
-  textInput: {
-    minHeight: 56,
-    maxHeight: 120,
-    color: VoiceTheme.text,
-    fontSize: 17,
-    textAlignVertical: 'top',
-  },
-  typeMetaRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  hintText: {
-    color: VoiceTheme.textMuted,
-    fontSize: 12,
-  },
-  charCounter: {
-    color: VoiceTheme.textMuted,
-    fontSize: 12,
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  speakButton: {
-    flex: 2,
-    minHeight: MIN_TOUCH_TARGET,
-    backgroundColor: VoiceTheme.accent,
-    borderRadius: 16,
+  stepBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: LANDING.white,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  speakButtonDisabled: {
-    backgroundColor: VoiceTheme.surfaceElevated,
+  stepNumber: {
+    color: LANDING.gradientEnd,
+    fontWeight: '800',
+    fontSize: 16,
   },
-  speakButtonPressed: {
-    opacity: 0.85,
-  },
-  speakButtonText: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: VoiceTheme.onAccent,
-  },
-  stopButton: {
+  stepCopy: {
     flex: 1,
-    minHeight: MIN_TOUCH_TARGET,
-    backgroundColor: VoiceTheme.danger,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    gap: 4,
   },
-  stopButtonDisabled: {
-    backgroundColor: VoiceTheme.surfaceElevated,
+  stepTitle: {
+    color: LANDING.white,
+    fontWeight: '800',
+    fontSize: 18,
   },
-  stopButtonPressed: {
-    opacity: 0.85,
-  },
-  stopButtonText: {
+  stepBody: {
+    color: LANDING.whiteMuted,
     fontSize: 15,
-    fontWeight: '700',
-    color: VoiceTheme.onAccent,
+    lineHeight: 22,
   },
-  stopButtonTextDisabled: {
-    color: VoiceTheme.textMuted,
+  darkSection: {
+    marginHorizontal: 20,
+    marginVertical: 12,
+    backgroundColor: LANDING.darkSection,
+    borderRadius: 24,
+    paddingHorizontal: 24,
+    paddingVertical: 36,
   },
-  clearButton: {
-    flex: 1,
-    minHeight: MIN_TOUCH_TARGET,
-    backgroundColor: VoiceTheme.surfaceElevated,
-    borderRadius: 16,
+  darkHeadline: {
+    color: LANDING.white,
+    fontFamily: VoiceFonts.display,
+    fontSize: 30,
+    lineHeight: 36,
+    textAlign: 'center',
+    marginBottom: 14,
+  },
+  darkBody: {
+    color: LANDING.whiteSoft,
+    fontSize: 17,
+    lineHeight: 26,
+    textAlign: 'center',
+  },
+  ctaSection: {
+    paddingHorizontal: 24,
+    paddingTop: 36,
+    paddingBottom: 24,
     alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: VoiceTheme.border,
   },
-  clearButtonDisabled: {
-    opacity: 0.6,
+  ctaHeadline: {
+    color: LANDING.white,
+    fontFamily: VoiceFonts.display,
+    fontSize: 32,
+    lineHeight: 38,
+    textAlign: 'center',
+    marginBottom: 22,
   },
-  clearButtonPressed: {
-    opacity: 0.7,
-  },
-  clearButtonText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: VoiceTheme.textSecondary,
-  },
-  clearButtonTextDisabled: {
-    color: VoiceTheme.textMuted,
-  },
-  categoryScroll: {
-    marginTop: 18,
-    flexGrow: 0,
-  },
-  categoryScrollContent: {
-    paddingHorizontal: 20,
-    gap: 10,
-  },
-  categoryPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 20,
-    backgroundColor: VoiceTheme.surface,
-    borderWidth: 1,
-    borderColor: VoiceTheme.border,
-  },
-  categoryPillPressed: {
-    opacity: 0.7,
-  },
-  categoryEmoji: {
-    fontSize: 15,
-  },
-  categoryLabel: {
-    color: VoiceTheme.textSecondary,
-    fontWeight: '600',
+  ctaFinePrint: {
+    color: LANDING.whiteMuted,
     fontSize: 13,
-  },
-  categoryLabelActive: {
-    color: VoiceTheme.onAccent,
-  },
-  phraseScroll: {
-    flex: 1,
-    marginTop: 16,
-  },
-  phraseScrollContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 100,
+    lineHeight: 20,
+    textAlign: 'center',
+    marginTop: 4,
   },
 });

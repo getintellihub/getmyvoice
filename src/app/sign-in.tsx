@@ -34,7 +34,7 @@ export default function SignInScreen() {
         noteSignedInAsNewUser();
         await setOnboardingComplete(false);
       }
-      router.replace('/' as Href);
+      router.replace('/home' as Href);
     },
     onError: (message) => setError(message),
   });
@@ -50,7 +50,7 @@ export default function SignInScreen() {
     try {
       const result = await signInWithEmail(email, password);
       if (result.isNewUser) noteSignedInAsNewUser();
-      router.replace('/' as Href);
+      router.replace('/home' as Href);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign in failed.');
     } finally {

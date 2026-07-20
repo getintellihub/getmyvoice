@@ -35,7 +35,7 @@ export default function SignUpScreen() {
         noteSignedInAsNewUser();
         await setOnboardingComplete(false);
       }
-      router.replace('/' as Href);
+      router.replace('/home' as Href);
     },
     onError: (message) => setError(message),
   });
@@ -60,7 +60,7 @@ export default function SignUpScreen() {
       await signUpWithEmail(email, password);
       noteSignedInAsNewUser();
       await setOnboardingComplete(false);
-      router.replace('/' as Href);
+      router.replace('/home' as Href);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign up failed.');
     } finally {
