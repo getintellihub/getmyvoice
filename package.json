@@ -43,9 +43,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "build:web": "expo export -p web",
-    "serve:web": "node server.js",
-    "serve:api": "node server.js"
+    "build:web": "expo export -p web"
   },
   "private": true
 }
