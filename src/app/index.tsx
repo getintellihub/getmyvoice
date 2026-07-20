@@ -1,4 +1,4 @@
-import * as Speech from 'expo-speech';
+import { type Href, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,9 +9,7 @@ import { HistoryModal } from '@/components/history-modal';
 import { OnboardingScreen } from '@/components/onboarding-screen';
 import { PhraseGrid } from '@/components/phrase-grid';
 import { QuickCommandsFab } from '@/components/quick-commands-fab';
-import { VoiceSettingsModal } from '@/components/voice-settings-modal';
 import { CATEGORIES, CategoryId, DEFAULT_PHRASES } from '@/constants/phrases';
-import { VOICE_CLONE_TEST_PHRASE } from '@/constants/voice-clone';
 import { MIN_TOUCH_TARGET, VoiceFonts, VoiceTheme } from '@/constants/voice-theme';
 import { useAutoSpeakSchedule } from '@/hooks/use-auto-speak-schedule';
 import { useCustomPhrases } from '@/hooks/use-custom-phrases';
@@ -24,16 +22,16 @@ import { speakText, stopSpeaking as stopSpeechEngine } from '@/services/speech-e
 const MAX_CHARACTERS = 500;
 
 export default function MyVoiceScreen() {
+  const router = useRouter();
   const [activeCategory, setActiveCategory] = useState<CategoryId>('greetings');
   const [inputText, setInputText] = useState('');
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [settingsVisible, setSettingsVisible] = useState(false);
   const [historyVisible, setHistoryVisible] = useState(false);
   const [scheduleVisible, setScheduleVisible] = useState(false);
   const [greetingDismissed, setGreetingDismissed] = useState(false);
 
   const { isLoaded: onboardingLoaded, hasSeenOnboarding, completeOnboarding } = useOnboarding();
-  const { settings, updateSetting, setVoiceIdentifier, resetSettings } = useVoiceSettings();
+  const { settings } = useVoiceSettings();
   const { history, addToHistory, clearHistory } = useHistory();
   const { phrases: myPhrases, addPhrase, removePhrase } = useCustomPhrases();
   const timeGreeting = useTimeGreeting();
@@ -72,26 +70,6 @@ export default function MyVoiceScreen() {
     setInputText('');
   }
 
-  function handlePreviewVoice() {
-    // Always previews the system voice/sliders directly, even if a cloned
-    // voice is active — this button is for tuning the system-voice fallback.
-    Speech.stop();
-    Speech.speak('This is how I sound.', {
-      rate: settings.rate,
-      pitch: settings.pitch,
-      volume: settings.volume,
-      voice: settings.voiceIdentifier ?? undefined,
-    });
-  }
-
-  function handleTestClonedVoice() {
-    speakText(VOICE_CLONE_TEST_PHRASE, settings, {
-      onStart: () => setIsSpeaking(true),
-      onDone: () => setIsSpeaking(false),
-      onError: () => setIsSpeaking(false),
-    });
-  }
-
   if (!onboardingLoaded) {
     return <View style={styles.safeArea} />;
   }
@@ -125,7 +103,7 @@ export default function MyVoiceScreen() {
             </Pressable>
             <Pressable
               accessibilityLabel="Voice settings"
-              onPress={() => setSettingsVisible(true)}
+              onPress={() => router.push('/voice-settings' as Href)}
               style={({ pressed }) => [styles.iconButton, pressed && styles.iconButtonPressed]}>
               <Text style={styles.iconButtonText}>⚙️</Text>
             </Pressable>
@@ -227,17 +205,6 @@ export default function MyVoiceScreen() {
       </KeyboardAvoidingView>
 
       <QuickCommandsFab onSpeak={speak} />
-
-      <VoiceSettingsModal
-        visible={settingsVisible}
-        settings={settings}
-        onChange={updateSetting}
-        onVoiceChange={setVoiceIdentifier}
-        onReset={resetSettings}
-        onClose={() => setSettingsVisible(false)}
-        onPreview={handlePreviewVoice}
-        onTestClonedVoice={handleTestClonedVoice}
-      />
 
       <HistoryModal
         visible={historyVisible}

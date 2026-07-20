@@ -31,8 +31,16 @@ export default function RootLayout() {
         screenOptions={{
           headerShown: false,
           contentStyle: { backgroundColor: VoiceTheme.background },
-        }}
-      />
+        }}>
+        <Stack.Screen name="index" />
+        <Stack.Screen
+          name="voice-settings"
+          options={{
+            animation: 'slide_from_right',
+            gestureEnabled: true,
+          }}
+        />
+      </Stack>
     </ThemeProvider>
   );
 }
