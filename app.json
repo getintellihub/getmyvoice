@@ -34,9 +34,10 @@
         }
       ],
       [
-        "expo-av",
+        "expo-audio",
         {
-          "microphonePermission": "MyVoice needs microphone access to record a short voice sample so it can clone your voice."
+          "microphonePermission": "MyVoice needs microphone access to record a short voice sample so it can clone your voice.",
+          "recordAudioAndroid": true
         }
       ]
     ],

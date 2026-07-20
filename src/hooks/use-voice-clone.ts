@@ -1,9 +1,18 @@
-import { Audio } from 'expo-av';
+import {
+  createAudioPlayer,
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioPlayer,
+  useAudioPlayerStatus,
+  useAudioRecorder,
+  type AudioPlayer,
+} from 'expo-audio';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 
-import { MAX_RECORDING_SECONDS, MIN_RECORDING_SECONDS } from '@/constants/voice-clone';
 import { getApiUrl } from '@/api';
+import { MAX_RECORDING_SECONDS, MIN_RECORDING_SECONDS } from '@/constants/voice-clone';
 import { getUserVoiceId, setUserVoiceId } from '@/services/speech-engine';
 
 const STORAGE_KEY = 'userVoiceId';
@@ -19,21 +28,11 @@ type RecordingMime = {
   extension: string;
 };
 
-function pickWebRecorderMime(): RecordingMime {
-  if (typeof MediaRecorder === 'undefined') {
+function recordingMimeForPlatform(): RecordingMime {
+  if (Platform.OS === 'web') {
     return { mimeType: 'audio/webm', extension: 'webm' };
   }
-  const candidates: RecordingMime[] = [
-    { mimeType: 'audio/webm;codecs=opus', extension: 'webm' },
-    { mimeType: 'audio/webm', extension: 'webm' },
-    { mimeType: 'audio/mp4', extension: 'm4a' },
-  ];
-  for (const candidate of candidates) {
-    if (MediaRecorder.isTypeSupported?.(candidate.mimeType)) {
-      return candidate;
-    }
-  }
-  return { mimeType: 'audio/webm', extension: 'webm' };
+  return { mimeType: 'audio/m4a', extension: 'm4a' };
 }
 
 function formatCaughtError(error: unknown, fallback = FRIENDLY_ERROR): string {
@@ -68,18 +67,17 @@ export function useVoiceClone() {
   const [durationSeconds, setDurationSeconds] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isPlayingPreview, setIsPlayingPreview] = useState(false);
+  const [hasRecording, setHasRecording] = useState(false);
 
-  const recordingRef = useRef<Audio.Recording | null>(null);
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const previewPlayer = useAudioPlayer(null);
+  const previewStatus = useAudioPlayerStatus(previewPlayer);
+
   const recordingUriRef = useRef<string | null>(null);
-  const recordingBlobRef = useRef<Blob | null>(null);
-  const recordingMimeRef = useRef<RecordingMime>({ mimeType: 'audio/m4a', extension: 'm4a' });
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
-  const mediaChunksRef = useRef<Blob[]>([]);
-  const webAudioRef = useRef<HTMLAudioElement | null>(null);
+  const recordingMimeRef = useRef<RecordingMime>(recordingMimeForPlatform());
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const previewSoundRef = useRef<Audio.Sound | null>(null);
   const stopRecordingRef = useRef<() => Promise<void>>(async () => undefined);
+  const previewFallbackPlayerRef = useRef<AudioPlayer | null>(null);
 
   useEffect(() => {
     getUserVoiceId()
@@ -91,18 +89,28 @@ export function useVoiceClone() {
   }, []);
 
   useEffect(() => {
+    if (previewStatus.didJustFinish) {
+      setIsPlayingPreview(false);
+    }
+  }, [previewStatus.didJustFinish]);
+
+  useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
-      previewSoundRef.current?.unloadAsync().catch(() => undefined);
-      recordingRef.current?.stopAndUnloadAsync().catch(() => undefined);
-      mediaRecorderRef.current?.stop();
-      mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
-      if (recordingUriRef.current?.startsWith('blob:')) {
-        URL.revokeObjectURL(recordingUriRef.current);
+      try {
+        if (audioRecorder.isRecording) {
+          audioRecorder.stop().catch(() => undefined);
+        }
+      } catch {
+        // ignore
       }
-      webAudioRef.current?.pause();
+      try {
+        previewFallbackPlayerRef.current?.remove();
+      } catch {
+        // ignore
+      }
     };
-  }, []);
+  }, [audioRecorder]);
 
   const clearTimer = useCallback(() => {
     if (timerRef.current) {
@@ -124,161 +132,63 @@ export function useVoiceClone() {
     }, 1000);
   }, []);
 
-  const stopWebRecording = useCallback(async () => {
+  const stopRecording = useCallback(async () => {
     clearTimer();
-    const recorder = mediaRecorderRef.current;
-    if (!recorder) return;
-
-    await new Promise<void>((resolve) => {
-      recorder.onstop = () => resolve();
-      try {
-        if (recorder.state !== 'inactive') {
-          recorder.stop();
-        } else {
-          resolve();
-        }
-      } catch (error) {
-        console.error('[useVoiceClone] MediaRecorder.stop failed', error);
-        resolve();
-      }
-    });
-
-    mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
-    mediaStreamRef.current = null;
-    mediaRecorderRef.current = null;
-
-    const mime = recordingMimeRef.current;
-    const blob = new Blob(mediaChunksRef.current, { type: mime.mimeType });
-    mediaChunksRef.current = [];
-
-    if (blob.size === 0) {
-      const message = 'Recording was empty. Please try again and speak for at least 30 seconds.';
-      console.error('[useVoiceClone] Web recording produced empty blob');
-      setErrorMessage(message);
-      setStage('error');
-      return;
-    }
-
-    if (recordingUriRef.current?.startsWith('blob:')) {
-      URL.revokeObjectURL(recordingUriRef.current);
-    }
-    recordingBlobRef.current = blob;
-    recordingUriRef.current = URL.createObjectURL(blob);
-    console.log('[useVoiceClone] Web recording ready', {
-      bytes: blob.size,
-      mimeType: blob.type || mime.mimeType,
-    });
-    setStage('recorded');
-  }, [clearTimer]);
-
-  const stopNativeRecording = useCallback(async () => {
-    clearTimer();
-    const recording = recordingRef.current;
-    if (!recording) return;
 
     try {
-      await recording.stopAndUnloadAsync();
-      const uri = recording.getURI();
+      if (audioRecorder.isRecording) {
+        await audioRecorder.stop();
+      }
+
+      const uri = audioRecorder.uri;
       if (!uri) {
         throw new Error('Recording finished but no audio file was saved. Please try again.');
       }
+
       recordingUriRef.current = uri;
-      recordingBlobRef.current = null;
-      recordingMimeRef.current = { mimeType: 'audio/m4a', extension: 'm4a' };
-      recordingRef.current = null;
-      console.log('[useVoiceClone] Native recording ready', { uri });
+      recordingMimeRef.current = recordingMimeForPlatform();
+      setHasRecording(true);
+      console.log(`${LOG} Recording ready (expo-audio)`, { uri, mime: recordingMimeRef.current });
       setStage('recorded');
     } catch (error) {
-      console.error('[useVoiceClone] Native stopRecording failed', error);
+      console.error(`${LOG} stopRecording failed`, error);
       setErrorMessage(formatCaughtError(error));
       setStage('error');
     }
-  }, [clearTimer]);
-
-  const stopRecording = useCallback(async () => {
-    if (Platform.OS === 'web') {
-      await stopWebRecording();
-      return;
-    }
-    await stopNativeRecording();
-  }, [stopNativeRecording, stopWebRecording]);
+  }, [audioRecorder, clearTimer]);
 
   stopRecordingRef.current = stopRecording;
-
-  const startWebRecording = useCallback(async () => {
-    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
-      throw new Error('This browser does not support microphone recording.');
-    }
-    if (typeof MediaRecorder === 'undefined') {
-      throw new Error('This browser does not support MediaRecorder.');
-    }
-
-    const mime = pickWebRecorderMime();
-    recordingMimeRef.current = mime;
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    mediaStreamRef.current = stream;
-    mediaChunksRef.current = [];
-
-    const recorder = new MediaRecorder(stream, { mimeType: mime.mimeType });
-    mediaRecorderRef.current = recorder;
-    recorder.ondataavailable = (event) => {
-      if (event.data && event.data.size > 0) {
-        mediaChunksRef.current.push(event.data);
-      }
-    };
-    recorder.onerror = (event) => {
-      console.error('[useVoiceClone] MediaRecorder error', event);
-    };
-
-    recorder.start(250);
-    recordingUriRef.current = null;
-    recordingBlobRef.current = null;
-    setStage('recording');
-    startTimer();
-    console.log('[useVoiceClone] Web MediaRecorder started', mime);
-  }, [startTimer]);
-
-  const startNativeRecording = useCallback(async () => {
-    console.log('[useVoiceClone] Requesting microphone permission…');
-    const permission = await Audio.requestPermissionsAsync();
-    console.log('[useVoiceClone] Microphone permission result', permission);
-
-    if (!permission.granted) {
-      setErrorMessage(MIC_DENIED_ERROR);
-      setStage('error');
-      return;
-    }
-
-    // Required on iOS before Recording.createAsync — enables the mic input
-    // session and allows recording while the hardware silent switch is on.
-    await Audio.setAudioModeAsync({
-      allowsRecordingIOS: true,
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: false,
-      shouldDuckAndroid: true,
-      playThroughEarpieceAndroid: false,
-    });
-
-    const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-    recordingRef.current = recording;
-    recordingUriRef.current = null;
-    recordingBlobRef.current = null;
-    recordingMimeRef.current = { mimeType: 'audio/m4a', extension: 'm4a' };
-    setStage('recording');
-    startTimer();
-    console.log('[useVoiceClone] Native HIGH_QUALITY recording started');
-  }, [startTimer]);
 
   const startRecording = useCallback(async () => {
     try {
       setErrorMessage(null);
-      if (Platform.OS === 'web') {
-        await startWebRecording();
+      console.log(`${LOG} Requesting microphone permission…`);
+      const permission = await requestRecordingPermissionsAsync();
+      console.log(`${LOG} Microphone permission result`, permission);
+
+      if (!permission.granted) {
+        setErrorMessage(MIC_DENIED_ERROR);
+        setStage('error');
         return;
       }
-      await startNativeRecording();
+
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+      });
+
+      recordingUriRef.current = null;
+      setHasRecording(false);
+      recordingMimeRef.current = recordingMimeForPlatform();
+
+      await audioRecorder.prepareToRecordAsync();
+      audioRecorder.record();
+
+      setStage('recording');
+      startTimer();
+      console.log(`${LOG} expo-audio HIGH_QUALITY recording started`);
     } catch (error) {
-      console.error('[useVoiceClone] startRecording failed', error);
+      console.error(`${LOG} startRecording failed`, error);
       const message = formatCaughtError(error);
       const lower = message.toLowerCase();
       if (lower.includes('permission') || lower.includes('not authorized') || lower.includes('denied')) {
@@ -288,7 +198,7 @@ export function useVoiceClone() {
       }
       setStage('error');
     }
-  }, [startNativeRecording, startWebRecording]);
+  }, [audioRecorder, startTimer]);
 
   const playPreview = useCallback(async () => {
     const uri = recordingUriRef.current;
@@ -296,52 +206,44 @@ export function useVoiceClone() {
 
     try {
       setIsPlayingPreview(true);
-
-      if (Platform.OS === 'web') {
-        webAudioRef.current?.pause();
-        const BrowserAudio = (globalThis as typeof globalThis & { Audio?: typeof window.Audio }).Audio;
-        if (!BrowserAudio) {
-          throw new Error('Browser audio playback is unavailable');
-        }
-        const audio = new BrowserAudio(uri);
-        webAudioRef.current = audio;
-        audio.onended = () => setIsPlayingPreview(false);
-        audio.onerror = (event) => {
-          console.error('[useVoiceClone] Web preview playback failed', event);
-          setIsPlayingPreview(false);
-        };
-        await audio.play();
-        return;
-      }
-
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
       });
 
-      if (previewSoundRef.current) {
-        await previewSoundRef.current.unloadAsync().catch(() => undefined);
-        previewSoundRef.current = null;
-      }
-      const { sound } = await Audio.Sound.createAsync({ uri }, { shouldPlay: true });
-      previewSoundRef.current = sound;
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.isLoaded && status.didJustFinish) {
-          setIsPlayingPreview(false);
-        }
-      });
+      console.log(`${LOG} playPreview via expo-audio`, { uri: uri.slice(0, 120) });
+      previewPlayer.replace({ uri });
+      previewPlayer.seekTo(0).catch(() => undefined);
+      previewPlayer.play();
     } catch (error) {
-      console.error('[useVoiceClone] playPreview failed', error);
-      setIsPlayingPreview(false);
-      setErrorMessage(formatCaughtError(error, 'Could not play the recording preview.'));
+      console.error(`${LOG} playPreview failed`, error);
+      // Fallback path using createAudioPlayer if hook player fails
+      try {
+        previewFallbackPlayerRef.current?.remove();
+        const player = createAudioPlayer({ uri });
+        previewFallbackPlayerRef.current = player;
+        player.addListener('playbackStatusUpdate', (status) => {
+          if (status.didJustFinish) {
+            setIsPlayingPreview(false);
+            player.remove();
+            if (previewFallbackPlayerRef.current === player) {
+              previewFallbackPlayerRef.current = null;
+            }
+          }
+        });
+        player.play();
+      } catch (fallbackError) {
+        console.error(`${LOG} playPreview fallback failed`, fallbackError);
+        setIsPlayingPreview(false);
+        setErrorMessage(formatCaughtError(error, 'Could not play the recording preview.'));
+      }
     }
-  }, []);
+  }, [previewPlayer]);
 
   const createVoiceClone = useCallback(
     async (name: string) => {
       const uri = recordingUriRef.current;
-      const blob = recordingBlobRef.current;
-      if (!uri && !blob) return;
+      if (!uri) return;
 
       if (durationSeconds < MIN_RECORDING_SECONDS) {
         setErrorMessage(`Please record at least ${MIN_RECORDING_SECONDS} seconds so MyVoice can learn your voice.`);
@@ -359,28 +261,24 @@ export function useVoiceClone() {
         formData.append('name', name.trim() || 'My Voice');
 
         if (Platform.OS === 'web') {
-          let uploadBlob = blob;
-          if (!uploadBlob && uri) {
-            const fetched = await fetch(uri);
-            uploadBlob = await fetched.blob();
-          }
-          if (!uploadBlob || uploadBlob.size === 0) {
+          const fetched = await fetch(uri);
+          const uploadBlob = await fetched.blob();
+          if (!uploadBlob.size) {
             throw new Error('Recording blob is empty');
           }
           formData.append('files', uploadBlob, filename);
-          console.log('[useVoiceClone] Uploading web recording', {
+          console.log(`${LOG} Uploading web recording`, {
             bytes: uploadBlob.size,
             type: uploadBlob.type || mime.mimeType,
             filename,
           });
         } else {
-          if (!uri) throw new Error('Missing recording URI');
           formData.append('files', {
             uri,
             name: filename,
             type: mime.mimeType,
           } as unknown as Blob);
-          console.log('[useVoiceClone] Uploading native recording', {
+          console.log(`${LOG} Uploading native recording`, {
             uri,
             filename,
             mimeType: mime.mimeType,
@@ -429,7 +327,6 @@ export function useVoiceClone() {
         setStage('success');
       } catch (error) {
         console.error(`${LOG} createVoiceClone failed`, error);
-        // Show the actual Firebase / ElevenLabs error on screen for debugging.
         setErrorMessage(formatCaughtError(error));
         setStage('error');
       }
@@ -442,17 +339,14 @@ export function useVoiceClone() {
     await setUserVoiceId(null);
     setVoiceId(null);
     recordingUriRef.current = null;
-    recordingBlobRef.current = null;
+    setHasRecording(false);
     setDurationSeconds(0);
     setStage('intro');
   }, []);
 
   const startOver = useCallback(() => {
-    if (recordingUriRef.current?.startsWith('blob:')) {
-      URL.revokeObjectURL(recordingUriRef.current);
-    }
     recordingUriRef.current = null;
-    recordingBlobRef.current = null;
+    setHasRecording(false);
     setDurationSeconds(0);
     setErrorMessage(null);
     setStage('intro');
@@ -466,7 +360,7 @@ export function useVoiceClone() {
     durationSeconds,
     errorMessage,
     isPlayingPreview,
-    hasRecording: !!(recordingUriRef.current || recordingBlobRef.current),
+    hasRecording,
     startRecording,
     stopRecording,
     playPreview,

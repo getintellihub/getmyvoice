@@ -1,5 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Audio, AVPlaybackStatus } from 'expo-av';
+import {
+  createAudioPlayer,
+  setAudioModeAsync,
+  type AudioPlayer,
+  type AudioStatus,
+} from 'expo-audio';
 import { File, Paths } from 'expo-file-system';
 import * as Speech from 'expo-speech';
 import { Platform } from 'react-native';
@@ -9,7 +14,9 @@ import { getApiUrl } from '@/api';
 const USER_VOICE_ID_KEY = 'userVoiceId';
 const LOG = '[speech-engine]';
 
-let activeSound: Audio.Sound | null = null;
+let activePlayer: AudioPlayer | null = null;
+let activeSubscription: { remove: () => void } | null = null;
+let activeBlobUri: string | null = null;
 
 export async function getUserVoiceId(): Promise<string | null> {
   const value = await AsyncStorage.getItem(USER_VOICE_ID_KEY);
@@ -27,12 +34,29 @@ export async function setUserVoiceId(voiceId: string | null): Promise<void> {
   }
 }
 
-async function unloadActiveSound() {
-  const sound = activeSound;
-  activeSound = null;
-  if (!sound) return;
-  await sound.stopAsync().catch(() => undefined);
-  await sound.unloadAsync().catch(() => undefined);
+async function unloadActivePlayer() {
+  activeSubscription?.remove();
+  activeSubscription = null;
+
+  const player = activePlayer;
+  activePlayer = null;
+  if (player) {
+    try {
+      player.pause();
+    } catch {
+      // ignore
+    }
+    try {
+      player.remove();
+    } catch {
+      // ignore
+    }
+  }
+
+  if (activeBlobUri?.startsWith('blob:')) {
+    URL.revokeObjectURL(activeBlobUri);
+  }
+  activeBlobUri = null;
 }
 
 async function createPlayableUri(arrayBuffer: ArrayBuffer): Promise<string> {
@@ -86,29 +110,33 @@ async function speakWithClonedVoice(text: string, voiceId: string, onDone?: () =
 
   const uri = await createPlayableUri(arrayBuffer);
 
-  await unloadActiveSound();
+  // Stop any previous playback before assigning the new blob URI,
+  // otherwise unloadActivePlayer would revoke the URI we just created.
+  await unloadActivePlayer();
+  if (Platform.OS === 'web') {
+    activeBlobUri = uri;
+  }
 
-  await Audio.setAudioModeAsync({
-    allowsRecordingIOS: false,
-    playsInSilentModeIOS: true,
+  await setAudioModeAsync({
+    allowsRecording: false,
+    playsInSilentMode: true,
   }).catch((error) => {
     console.warn(`${LOG} setAudioModeAsync warning`, error);
   });
 
-  console.log(`${LOG} speakWithClonedVoice starting playback`, { uri: uri.slice(0, 120) });
-  const { sound } = await Audio.Sound.createAsync({ uri }, { shouldPlay: true });
-  activeSound = sound;
-  sound.setOnPlaybackStatusUpdate((status: AVPlaybackStatus) => {
-    if (status.isLoaded && status.didJustFinish) {
+  console.log(`${LOG} speakWithClonedVoice starting expo-audio playback`, { uri: uri.slice(0, 120) });
+  const player = createAudioPlayer({ uri }, { updateInterval: 200 });
+  activePlayer = player;
+
+  activeSubscription = player.addListener('playbackStatusUpdate', (status: AudioStatus) => {
+    if (status.didJustFinish) {
       console.log(`${LOG} speakWithClonedVoice playback finished`);
       onDone?.();
-      sound.unloadAsync().catch(() => undefined);
-      if (activeSound === sound) activeSound = null;
-      if (Platform.OS === 'web' && uri.startsWith('blob:')) {
-        URL.revokeObjectURL(uri);
-      }
+      unloadActivePlayer().catch(() => undefined);
     }
   });
+
+  player.play();
 }
 
 export interface SpeakVoiceSettings {
@@ -151,7 +179,7 @@ export async function speakText(text: string, settings: SpeakVoiceSettings, call
     try {
       callbacks.onStart?.();
       await speakWithClonedVoice(trimmed, userVoiceId, callbacks.onDone);
-      console.log(`${LOG} speakText ElevenLabs path succeeded`);
+      console.log(`${LOG} speakText ElevenLabs path started playback`);
       return;
     } catch (error) {
       console.error(`${LOG} speakText ElevenLabs failed — falling back to expo-speech`, error);
@@ -180,5 +208,5 @@ export async function speakText(text: string, settings: SpeakVoiceSettings, call
 
 export async function stopSpeaking(): Promise<void> {
   Speech.stop();
-  await unloadActiveSound();
+  await unloadActivePlayer();
 }
