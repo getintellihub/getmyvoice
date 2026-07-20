@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 import { MIN_RECORDING_SECONDS, RECORDING_TIPS, VOICE_CLONE_SCRIPT } from '@/constants/voice-clone';
 import { MIN_TOUCH_TARGET, VoiceFonts, VoiceTheme } from '@/constants/voice-theme';
@@ -51,6 +51,7 @@ export function VoiceCloneCard({
   onDismissSuccess,
 }: VoiceCloneCardProps) {
   const [voiceName, setVoiceName] = useState('My Voice');
+  const canCreate = durationSeconds >= MIN_RECORDING_SECONDS;
 
   return (
     <View style={styles.card}>
@@ -75,11 +76,14 @@ export function VoiceCloneCard({
 
           <View style={styles.actionSpacer} />
 
-          <Pressable
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Start recording"
+            activeOpacity={0.7}
             onPress={startRecording}
-            style={({ pressed }) => [styles.recordButton, pressed && styles.recordButtonPressed]}>
+            style={styles.recordButton}>
             <Text style={styles.recordButtonText}>🎙️ Record</Text>
-          </Pressable>
+          </TouchableOpacity>
         </View>
       )}
 
@@ -89,38 +93,43 @@ export function VoiceCloneCard({
           <Text style={styles.recordingHint}>Read the script below — about 2–3 minutes gives the best clone.</Text>
           <ScriptBlock />
           <View style={styles.actionSpacer} />
-          <Pressable
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Stop recording"
+            activeOpacity={0.7}
             onPress={stopRecording}
-            style={({ pressed }) => [styles.stopButton, pressed && styles.stopButtonPressed]}>
+            style={styles.stopButton}>
             <Text style={styles.recordButtonText}>⏹ Stop Recording</Text>
-          </Pressable>
+          </TouchableOpacity>
         </View>
       )}
 
       {stage === 'recorded' && (
         <View style={styles.stageBlock}>
           <Text style={styles.recordedLabel}>Recorded {formatDuration(durationSeconds)}</Text>
-          {durationSeconds < MIN_RECORDING_SECONDS && (
+          {!canCreate && (
             <Text style={styles.durationHint}>
               Tip: aim for at least {MIN_RECORDING_SECONDS} seconds for the best clone.
             </Text>
           )}
-          <View style={styles.actionsRow}>
-            <Pressable
-              onPress={playPreview}
+          <View style={styles.actionsColumn}>
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Play recording preview"
+              activeOpacity={0.7}
               disabled={isPlayingPreview}
-              style={({ pressed }) => [
-                styles.previewButton,
-                pressed && !isPlayingPreview && styles.previewButtonPressed,
-                isPlayingPreview && styles.previewButtonDisabled,
-              ]}>
+              onPress={playPreview}
+              style={[styles.previewButton, isPlayingPreview && styles.previewButtonDisabled]}>
               <Text style={styles.previewButtonText}>{isPlayingPreview ? '▶ Playing…' : '▶ Play Preview'}</Text>
-            </Pressable>
-            <Pressable
+            </TouchableOpacity>
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Record again"
+              activeOpacity={0.7}
               onPress={startOver}
-              style={({ pressed }) => [styles.recordAgainButton, pressed && styles.pressedOpacity]}>
-              <Text style={styles.recordAgainButtonText}>Record Again</Text>
-            </Pressable>
+              style={styles.secondaryButton}>
+              <Text style={styles.secondaryButtonText}>Record Again</Text>
+            </TouchableOpacity>
           </View>
           <TextInput
             value={voiceName}
@@ -129,16 +138,15 @@ export function VoiceCloneCard({
             placeholderTextColor={VoiceTheme.textMuted}
             style={styles.nameInput}
           />
-          <Pressable
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Create my voice"
+            activeOpacity={0.7}
+            disabled={!canCreate}
             onPress={() => createVoiceClone(voiceName)}
-            disabled={durationSeconds < MIN_RECORDING_SECONDS}
-            style={({ pressed }) => [
-              styles.recordButton,
-              durationSeconds < MIN_RECORDING_SECONDS && styles.recordButtonDisabled,
-              pressed && durationSeconds >= MIN_RECORDING_SECONDS && styles.recordButtonPressed,
-            ]}>
+            style={[styles.recordButton, !canCreate && styles.recordButtonDisabled]}>
             <Text style={styles.recordButtonText}>✨ Create My Voice</Text>
-          </Pressable>
+          </TouchableOpacity>
         </View>
       )}
 
@@ -153,25 +161,36 @@ export function VoiceCloneCard({
         <View style={styles.centeredBox}>
           <Text style={styles.successEmoji}>🎉</Text>
           <Text style={styles.successTitle}>Your voice is ready</Text>
-          <Pressable
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Test speak with cloned voice"
+            activeOpacity={0.7}
             onPress={onTestVoice}
-            style={({ pressed }) => [styles.recordButton, pressed && styles.recordButtonPressed]}>
+            style={styles.recordButton}>
             <Text style={styles.recordButtonText}>🔊 Speak</Text>
-          </Pressable>
-          <Pressable onPress={onDismissSuccess} style={({ pressed }) => [styles.doneButton, pressed && styles.pressedOpacity]}>
-            <Text style={styles.doneButtonText}>Done</Text>
-          </Pressable>
+          </TouchableOpacity>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Done"
+            activeOpacity={0.7}
+            onPress={onDismissSuccess}
+            style={styles.secondaryButton}>
+            <Text style={styles.secondaryButtonText}>Done</Text>
+          </TouchableOpacity>
         </View>
       )}
 
       {stage === 'error' && (
         <View style={styles.centeredBox}>
           <Text style={styles.errorText}>{errorMessage}</Text>
-          <Pressable
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Try again"
+            activeOpacity={0.7}
             onPress={startOver}
-            style={({ pressed }) => [styles.recordButton, pressed && styles.recordButtonPressed]}>
+            style={styles.recordButton}>
             <Text style={styles.recordButtonText}>Try Again</Text>
-          </Pressable>
+          </TouchableOpacity>
         </View>
       )}
     </View>
@@ -254,9 +273,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 4,
   },
-  recordButtonPressed: {
-    opacity: 0.85,
-  },
   recordButtonDisabled: {
     opacity: 0.5,
   },
@@ -290,20 +306,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 4,
   },
-  stopButtonPressed: {
-    opacity: 0.85,
-  },
   recordedLabel: {
     color: VoiceTheme.textSecondary,
     fontSize: 14,
     textAlign: 'center',
   },
-  actionsRow: {
-    flexDirection: 'row',
+  actionsColumn: {
     gap: 10,
   },
   previewButton: {
-    flex: 1,
     minHeight: MIN_TOUCH_TARGET,
     backgroundColor: VoiceTheme.surface,
     borderRadius: 16,
@@ -311,9 +322,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: VoiceTheme.border,
-  },
-  previewButtonPressed: {
-    opacity: 0.7,
   },
   previewButtonDisabled: {
     opacity: 0.6,
@@ -323,19 +331,20 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 15,
   },
-  recordAgainButton: {
+  secondaryButton: {
     minHeight: MIN_TOUCH_TARGET,
-    paddingHorizontal: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: VoiceTheme.border,
+    backgroundColor: VoiceTheme.surface,
+    paddingHorizontal: 16,
   },
-  pressedOpacity: {
-    opacity: 0.6,
-  },
-  recordAgainButtonText: {
+  secondaryButtonText: {
     color: VoiceTheme.textSecondary,
-    fontWeight: '600',
-    fontSize: 14,
+    fontWeight: '700',
+    fontSize: 15,
   },
   nameInput: {
     minHeight: MIN_TOUCH_TARGET,
@@ -350,6 +359,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 14,
     paddingVertical: 8,
+    alignSelf: 'stretch',
   },
   uploadingText: {
     color: VoiceTheme.textSecondary,
@@ -362,14 +372,6 @@ const styles = StyleSheet.create({
     color: VoiceTheme.text,
     fontSize: 20,
     fontFamily: VoiceFonts.display,
-  },
-  doneButton: {
-    paddingVertical: 8,
-  },
-  doneButtonText: {
-    color: VoiceTheme.textSecondary,
-    fontWeight: '600',
-    fontSize: 14,
   },
   errorText: {
     color: VoiceTheme.danger,

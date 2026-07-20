@@ -341,8 +341,24 @@ export function useVoiceClone() {
     recordingUriRef.current = null;
     setHasRecording(false);
     setDurationSeconds(0);
+    setErrorMessage(null);
     setStage('intro');
   }, []);
+
+  /** Clear saved clone and return to the intro recording UI. */
+  const resetClone = useCallback(async () => {
+    console.log(`${LOG} resetClone`);
+    await removeClone();
+  }, [removeClone]);
+
+  /**
+   * Clear the existing clone and prepare a fresh recording session
+   * (same storage clear as reset, then leave stage on intro).
+   */
+  const reclone = useCallback(async () => {
+    console.log(`${LOG} reclone — clearing voice and returning to recording UI`);
+    await removeClone();
+  }, [removeClone]);
 
   const startOver = useCallback(() => {
     recordingUriRef.current = null;
@@ -366,6 +382,8 @@ export function useVoiceClone() {
     playPreview,
     createVoiceClone,
     removeClone,
+    resetClone,
+    reclone,
     startOver,
   };
 }

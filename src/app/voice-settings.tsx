@@ -1,7 +1,7 @@
 import * as Speech from 'expo-speech';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SliderControl } from '@/components/slider-control';
@@ -22,11 +22,23 @@ export default function VoiceSettingsScreen() {
   const showCloneFlow = !clone.hasClone || isRerecording || clone.stage !== 'intro';
   const showCloneStatus = clone.hasClone && !showCloneFlow;
 
-  function handleRemoveClone() {
-    Alert.alert('Remove voice clone?', 'MyVoice will switch back to the system voice.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: () => clone.removeClone() },
-    ]);
+  async function handleResetClone() {
+    console.log('[VoiceSettings] Reset — clearing userVoiceId and returning to recording intro');
+    await clone.resetClone();
+    setIsRerecording(false);
+  }
+
+  async function handleReclone() {
+    console.log('[VoiceSettings] Re-clone — clearing voice and opening recording UI');
+    await clone.reclone();
+    setIsRerecording(true);
+  }
+
+  async function handleResetAll() {
+    console.log('[VoiceSettings] Reset (settings) — also clearing userVoiceId');
+    await clone.resetClone();
+    setIsRerecording(false);
+    resetSettings();
   }
 
   function handlePreviewVoice() {
@@ -52,14 +64,16 @@ export default function VoiceSettingsScreen() {
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
+        keyboardShouldPersistTaps="always"
         showsVerticalScrollIndicator>
-        <Pressable
+        <TouchableOpacity
+          accessibilityRole="button"
           accessibilityLabel="Go back"
+          activeOpacity={0.7}
           onPress={() => router.back()}
-          style={({ pressed }) => [styles.backButton, pressed && styles.pressedOpacity]}>
+          style={styles.backButton}>
           <Text style={styles.backButtonText}>← Back</Text>
-        </Pressable>
+        </TouchableOpacity>
 
         <Text style={styles.title}>Voice Settings</Text>
 
@@ -68,26 +82,37 @@ export default function VoiceSettingsScreen() {
             <View style={styles.cloneBadge}>
               <Text style={styles.cloneBadgeText}>⭐ Using Your Voice</Text>
             </View>
-            <View style={styles.cloneActionsRow}>
-              <Pressable
-                onPress={handleTestClonedVoice}
-                style={({ pressed }) => [styles.cloneActionButton, pressed && styles.pressedOpacity]}>
-                <Text style={styles.cloneActionButtonText}>🔊 Test Voice</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => {
-                  clone.startOver();
-                  setIsRerecording(true);
-                }}
-                style={({ pressed }) => [styles.cloneActionButton, pressed && styles.pressedOpacity]}>
-                <Text style={styles.cloneActionButtonText}>🎙️ Re-record</Text>
-              </Pressable>
-              <Pressable
-                onPress={handleRemoveClone}
-                style={({ pressed }) => [styles.cloneActionButton, styles.cloneRemoveButton, pressed && styles.pressedOpacity]}>
-                <Text style={[styles.cloneActionButtonText, styles.cloneRemoveButtonText]}>Remove Clone</Text>
-              </Pressable>
-            </View>
+
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Test cloned voice"
+              activeOpacity={0.7}
+              onPress={handleTestClonedVoice}
+              style={styles.cloneActionButton}>
+              <Text style={styles.cloneActionButtonText}>🔊 Test Voice</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Re-clone voice"
+              activeOpacity={0.7}
+              onPress={() => {
+                void handleReclone();
+              }}
+              style={styles.cloneActionButton}>
+              <Text style={styles.cloneActionButtonText}>🎙️ Re-clone</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Reset voice clone"
+              activeOpacity={0.7}
+              onPress={() => {
+                void handleResetClone();
+              }}
+              style={[styles.cloneActionButton, styles.cloneResetButton]}>
+              <Text style={[styles.cloneActionButtonText, styles.cloneResetButtonText]}>Reset</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -156,17 +181,25 @@ export default function VoiceSettingsScreen() {
           />
         </View>
 
-        <Pressable
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Preview system voice"
+          activeOpacity={0.7}
           onPress={handlePreviewVoice}
-          style={({ pressed }) => [styles.previewButton, pressed && styles.previewButtonPressed]}>
+          style={styles.previewButton}>
           <Text style={styles.previewButtonText}>🔊 Preview Voice</Text>
-        </Pressable>
+        </TouchableOpacity>
 
-        <Pressable
-          onPress={resetSettings}
-          style={({ pressed }) => [styles.resetButton, pressed && styles.resetButtonPressed]}>
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Reset voice settings and clone"
+          activeOpacity={0.7}
+          onPress={() => {
+            void handleResetAll();
+          }}
+          style={styles.resetButton}>
           <Text style={styles.resetButtonText}>Reset</Text>
-        </Pressable>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -223,12 +256,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 14,
   },
-  cloneActionsRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
   cloneActionButton: {
-    flex: 1,
     minHeight: MIN_TOUCH_TARGET,
     backgroundColor: VoiceTheme.surface,
     borderRadius: 14,
@@ -236,18 +264,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: VoiceTheme.border,
-    paddingHorizontal: 6,
+    paddingHorizontal: 12,
   },
   cloneActionButtonText: {
     color: VoiceTheme.text,
     fontWeight: '700',
-    fontSize: 13,
+    fontSize: 16,
     textAlign: 'center',
   },
-  cloneRemoveButton: {
+  cloneResetButton: {
     borderColor: VoiceTheme.danger,
   },
-  cloneRemoveButtonText: {
+  cloneResetButtonText: {
     color: VoiceTheme.danger,
   },
   section: {
@@ -259,9 +287,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  previewButtonPressed: {
-    opacity: 0.85,
   },
   previewButtonText: {
     color: VoiceTheme.onAccent,
@@ -277,15 +302,9 @@ const styles = StyleSheet.create({
     borderColor: VoiceTheme.border,
     backgroundColor: VoiceTheme.surface,
   },
-  resetButtonPressed: {
-    opacity: 0.7,
-  },
   resetButtonText: {
     color: VoiceTheme.textSecondary,
     fontWeight: '700',
     fontSize: 16,
-  },
-  pressedOpacity: {
-    opacity: 0.7,
   },
 });
