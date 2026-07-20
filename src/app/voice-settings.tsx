@@ -40,6 +40,10 @@ export default function VoiceSettingsScreen() {
   }
 
   function handleTestClonedVoice() {
+    console.log('[VoiceSettings] Test Voice → speakText (expects userVoiceId / ElevenLabs)', {
+      hasClone: clone.hasClone,
+      voiceId: clone.voiceId,
+    });
     speakText(VOICE_CLONE_TEST_PHRASE, settings);
   }
 

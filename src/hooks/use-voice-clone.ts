@@ -1,12 +1,13 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Audio } from 'expo-av';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 
 import { MAX_RECORDING_SECONDS, MIN_RECORDING_SECONDS } from '@/constants/voice-clone';
 import { getApiUrl } from '@/api';
+import { getUserVoiceId, setUserVoiceId } from '@/services/speech-engine';
 
 const STORAGE_KEY = 'userVoiceId';
+const LOG = '[useVoiceClone]';
 const FRIENDLY_ERROR = 'Something went wrong creating your voice. Please try again in a quiet environment.';
 const MIC_DENIED_ERROR =
   'Microphone permission was denied. On iPhone, open Settings → Expo Go → Microphone, turn it on, then try again.';
@@ -81,8 +82,11 @@ export function useVoiceClone() {
   const stopRecordingRef = useRef<() => Promise<void>>(async () => undefined);
 
   useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY)
-      .then((stored) => setVoiceId(stored))
+    getUserVoiceId()
+      .then((stored) => {
+        console.log(`${LOG} hydrated from AsyncStorage`, { key: STORAGE_KEY, voiceId: stored });
+        setVoiceId(stored);
+      })
       .finally(() => setIsLoaded(true));
   }, []);
 
@@ -397,24 +401,34 @@ export function useVoiceClone() {
           data = { raw: rawText };
         }
 
-        console.log('[useVoiceClone] cloneVoice response', {
+        const voiceIdFromServer = data.voice_id != null ? String(data.voice_id) : null;
+        console.log(`${LOG} cloneVoice response`, {
           status: response.status,
           ok: response.ok,
+          voice_id: voiceIdFromServer,
           data,
           rawText: rawText.slice(0, 2000),
         });
 
-        if (!response.ok || !data.voice_id) {
+        if (!response.ok || !voiceIdFromServer) {
           const detail = formatServerError(data, response.status);
-          console.error('[useVoiceClone] cloneVoice failed', detail, data);
+          console.error(`${LOG} cloneVoice failed`, detail, data);
           throw new Error(detail);
         }
 
-        await AsyncStorage.setItem(STORAGE_KEY, String(data.voice_id));
-        setVoiceId(String(data.voice_id));
+        console.log(`${LOG} cloneVoice succeeded — saving userVoiceId`, voiceIdFromServer);
+        await setUserVoiceId(voiceIdFromServer);
+        const verified = await getUserVoiceId();
+        console.log(`${LOG} AsyncStorage verify after save`, {
+          key: STORAGE_KEY,
+          expected: voiceIdFromServer,
+          actual: verified,
+          matches: verified === voiceIdFromServer,
+        });
+        setVoiceId(voiceIdFromServer);
         setStage('success');
       } catch (error) {
-        console.error('[useVoiceClone] createVoiceClone failed', error);
+        console.error(`${LOG} createVoiceClone failed`, error);
         // Show the actual Firebase / ElevenLabs error on screen for debugging.
         setErrorMessage(formatCaughtError(error));
         setStage('error');
@@ -424,7 +438,8 @@ export function useVoiceClone() {
   );
 
   const removeClone = useCallback(async () => {
-    await AsyncStorage.removeItem(STORAGE_KEY);
+    console.log(`${LOG} removeClone clearing userVoiceId`);
+    await setUserVoiceId(null);
     setVoiceId(null);
     recordingUriRef.current = null;
     recordingBlobRef.current = null;

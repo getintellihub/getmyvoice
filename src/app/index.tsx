@@ -45,6 +45,9 @@ export default function MyVoiceScreen() {
     const trimmed = text.trim();
     if (!trimmed) return;
 
+    console.log('[MyVoice] speak() → speakText (will read userVoiceId from AsyncStorage)', {
+      textPreview: trimmed.slice(0, 80),
+    });
     speakText(trimmed, settings, {
       onStart: () => setIsSpeaking(true),
       onDone: () => setIsSpeaking(false),
