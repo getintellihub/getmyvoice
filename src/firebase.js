@@ -13,10 +13,10 @@ export const firebaseConfig = {
   appId: '1:882330948987:web:730892c57e911d89b819de',
 };
 
-// Deployed HTTPS Cloud Functions (us-central1 / getmyvoice-83d97).
+// Deployed Cloud Run HTTPS endpoints for the Firebase functions.
 export const CLOUD_FUNCTION_URLS = {
-  cloneVoice: 'https://us-central1-getmyvoice-83d97.cloudfunctions.net/cloneVoice',
-  speak: 'https://us-central1-getmyvoice-83d97.cloudfunctions.net/speak',
+  cloneVoice: 'https://clonevoice-3vl6syrnqq-uc.a.run.app',
+  speak: 'https://speak-3vl6syrnqq-uc.a.run.app',
 };
 
 /**
